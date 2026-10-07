@@ -1,0 +1,134 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.headCenter {
+  text-align: center;
+  align-items: center;
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.lead {
+  font-size: 15px;
+  color: var(--muted);
+  max-width: 44ch;
+}
+
+.sub {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.glass {
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.error {
+  font-size: 14px;
+  color: var(--gold);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn {
+  font-weight: 600;
+  font-size: 16px;
+  padding: 15px 20px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btnPrimary {
+  background: linear-gradient(135deg, var(--violet), var(--violet-hi));
+  color: var(--on-violet);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--violet) 55%, transparent);
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btnWide {
+  width: 100%;
+}
+
+.btnSmall {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 10px;
+}
+
+.dash li {
+  font-size: 14px;
+  padding-left: 14px;
+  position: relative;
+}
+
+.dash li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 6px;
+  height: 1px;
+  background: var(--muted);
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}

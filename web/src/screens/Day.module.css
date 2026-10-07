@@ -1,0 +1,44 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.card {
+  position: relative;
+  width: min(190px, 56%);
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  margin-block: 8px;
+}
+
+.card:disabled {
+  cursor: default;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--violet-hi) 60%, transparent), transparent 68%);
+  z-index: -1;
+}
+
+.ori {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.name {
+  font-family: var(--font-card);
+  font-size: 30px;
+  line-height: 1.1;
+}

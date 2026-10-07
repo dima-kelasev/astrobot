@@ -1,0 +1,35 @@
+.plans {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding: 16px;
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.desc {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.best {
+  border-color: var(--lilac);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--violet) 36%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+}

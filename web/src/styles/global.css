@@ -1,0 +1,76 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0718;
+  --nebula: #2b1466;
+  --surface: #1a1233;
+  --surface-hi: #261a4a;
+  --line: #3d2e69;
+  --ink: #f4efff;
+  --muted: #ac9fce;
+  --violet: #6d32e0;
+  --violet-hi: #8b4cf0;
+  --lilac: #b9a2ff;
+  --on-violet: #ffffff;
+  --gold: #f3c97a;
+  --back-a: #7b3ff2;
+  --back-b: #3a1787;
+  --card-face: #f3eeff;
+  --card-ink: #1d1340;
+  --font-display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-card: 'Forum', 'Times New Roman', serif;
+  --col: 440px;
+  --nav-h: 66px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(120% 60% at 50% 34%, var(--nebula) 0%, transparent 64%) fixed,
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--lilac);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}

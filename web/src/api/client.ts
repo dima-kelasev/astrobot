@@ -1,0 +1,105 @@
+import type { z } from 'zod';
+import { telegram } from '../telegram';
+import { daySchema, errorSchema, meSchema, pickSchema, skySchema, spreadStartSchema, streamEventSchema } from './schemas';
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string) {
+    super(code);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export const codeOf = (error: unknown) => (error instanceof ApiError ? error.code : 'unknown');
+
+type RequestOptions = { method?: string; body?: unknown; signal?: AbortSignal };
+
+const authHeaders = () => {
+  const headers: Record<string, string> = {};
+  const initData = telegram.initData();
+  if (initData) headers['X-Telegram-Init-Data'] = initData;
+  return headers;
+};
+
+const failure = async (res: Response) => {
+  const json: unknown = await res.json().catch(() => null);
+  const parsed = errorSchema.safeParse(json);
+  return new ApiError(res.status, parsed.success ? parsed.data.code : 'server_error');
+};
+
+const request = async <T>(schema: z.ZodType<T>, path: string, options: RequestOptions = {}) => {
+  const headers = authHeaders();
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal
+    });
+  } catch {
+    throw new ApiError(0, 'network');
+  }
+  if (!res.ok) throw await failure(res);
+  const json: unknown = await res.json().catch(() => null);
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) throw new ApiError(res.status, 'bad_response');
+  return parsed.data;
+};
+
+export const api = {
+  me: (signal?: AbortSignal) => request(meSchema, '/api/me', { signal }),
+  updateMe: (patch: { birthDate?: string; notify?: boolean }) => request(meSchema, '/api/me', { method: 'PUT', body: patch }),
+  sky: (signal?: AbortSignal) => request(skySchema, '/api/sky', { signal }),
+  day: (signal?: AbortSignal) => request(daySchema, '/api/day', { signal }),
+  openDay: () => request(daySchema, '/api/day/open', { method: 'POST' }),
+  startSpread: (question: string) => request(spreadStartSchema, '/api/spreads', { method: 'POST', body: { question } }),
+  pick: (id: string, index: number) => request(pickSchema, `/api/spreads/${id}/pick`, { method: 'POST', body: { index } })
+};
+
+export type ReadingDone = { source: 'ai' | 'template'; note: string | null };
+
+export const streamReading = async (path: string, onDelta: (delta: string) => void, signal: AbortSignal) => {
+  let res: Response;
+  try {
+    res = await fetch(path, { headers: authHeaders(), signal });
+  } catch {
+    throw new ApiError(0, 'network');
+  }
+  if (!res.ok || !res.body) throw await failure(res);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: ReadingDone | null = null;
+  for (;;) {
+    let chunk: ReadableStreamReadResult<Uint8Array>;
+    try {
+      chunk = await reader.read();
+    } catch {
+      throw new ApiError(0, 'network');
+    }
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() ?? '';
+    for (const part of parts) {
+      if (!part.startsWith('data: ')) continue;
+      let json: unknown;
+      try {
+        json = JSON.parse(part.slice(6));
+      } catch {
+        continue;
+      }
+      const event = streamEventSchema.safeParse(json);
+      if (!event.success) continue;
+      if (event.data.delta) onDelta(event.data.delta);
+      if (event.data.done) result = { source: event.data.source ?? 'ai', note: event.data.note ?? null };
+    }
+  }
+  if (!result) throw new ApiError(0, 'interrupted');
+  return result;
+};

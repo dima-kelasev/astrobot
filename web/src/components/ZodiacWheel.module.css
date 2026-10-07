@@ -1,0 +1,57 @@
+.wheel {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.natalSector {
+  fill: color-mix(in srgb, var(--violet-hi) 55%, transparent);
+}
+
+.ring {
+  fill: none;
+  stroke: var(--lilac);
+  stroke-width: 1;
+}
+
+.divider,
+.hand {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.tick {
+  stroke: var(--muted);
+  stroke-width: 0.5;
+}
+
+.label,
+.labelOwn {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.labelOwn {
+  fill: var(--ink);
+}
+
+.sunDisc {
+  fill: var(--bg);
+  stroke: var(--gold);
+  stroke-width: 1.8;
+}
+
+.sunDot,
+.natalMark {
+  fill: var(--gold);
+}
+
+.moonDisc {
+  fill: var(--bg);
+}
+
+.moon {
+  fill: var(--ink);
+}

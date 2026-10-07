@@ -1,0 +1,143 @@
+.questionWrap {
+  position: relative;
+}
+
+.question {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 16px 30px;
+  line-height: 1.45;
+  display: block;
+}
+
+.question::placeholder {
+  color: var(--muted);
+}
+
+.counter {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  font-size: 13px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--lilac);
+}
+
+.center {
+  text-align: center;
+}
+
+.paywall {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-color: var(--gold);
+}
+
+.stage {
+  position: relative;
+  width: calc(100% + 32px);
+  margin-inline: -16px;
+  min-height: 200px;
+  transition: height 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.ghost {
+  position: absolute;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.slotPos {
+  position: absolute;
+  top: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.slotName {
+  position: absolute;
+  text-align: center;
+  font-family: var(--font-card);
+  font-size: 17px;
+  line-height: 1.1;
+  padding-inline: 2px;
+  overflow-wrap: anywhere;
+}
+
+.slotOri {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.fcard {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  opacity: 1;
+  transition:
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.45s;
+}
+
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.picked {
+  cursor: default;
+}
+
+.lift {
+  display: block;
+  transition: transform 0.25s ease-out;
+}
+
+.fcard:not(:disabled):hover .lift,
+.fcard:not(:disabled):focus-visible .lift {
+  transform: translateY(-18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fcard,
+  .stage,
+  .lift {
+    transition: none;
+  }
+}
