@@ -1,4 +1,4 @@
-import { createBot, sendMorning, setupBot } from './bot.js';
+import { createBot, runBot, sendMorning } from './bot.js';
 import { closeDb } from './db.js';
 import { env, llmReady } from './env.js';
 import { createApp } from './http.js';
@@ -15,23 +15,15 @@ let stopNotifier = () => {};
 
 if (env.BOT_TOKEN) {
   const bot = createBot();
-  bot.launch().catch((error: unknown) => {
-    console.error('Бот остановился с ошибкой:', error);
-  });
-  setupBot(bot)
-    .then(() => console.log('Бот запущен.'))
-    .catch((error: unknown) => console.error('Не удалось настроить бота:', error));
+  stopBot = runBot(bot);
   stopNotifier = startNotifier((user, text) => sendMorning(bot, user, text));
-  stopBot = () => bot.stop();
 } else {
   console.warn('BOT_TOKEN не задан: бот не запущен, работает только сайт.');
 }
 
 const shutdown = async () => {
   stopNotifier();
-  try {
-    stopBot();
-  } catch {}
+  stopBot();
   await app.close();
   closeDb();
   process.exit(0);

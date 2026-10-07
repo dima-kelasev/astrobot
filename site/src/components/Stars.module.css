@@ -1,0 +1,39 @@
+.stars {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: var(--ink);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.a {
+  animation: twinkle 5s ease-in-out infinite;
+}
+
+.b {
+  animation: twinkle 7s ease-in-out -2s infinite;
+}
+
+.c {
+  animation: twinkle 9s ease-in-out -4s infinite;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a,
+  .b,
+  .c {
+    animation: none;
+  }
+}

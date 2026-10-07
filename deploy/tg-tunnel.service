@@ -1,0 +1,12 @@
+[Unit]
+Description=Astrobot tunnel to Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ssh -N -D 127.0.0.1:11080 -p 22 -i /root/.ssh/tgtunnel -o IdentitiesOnly=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=accept-new tgtunnel@FOREIGN_IP
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

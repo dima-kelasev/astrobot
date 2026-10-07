@@ -22,7 +22,7 @@ import {
   type ReadingKind,
   type User
 } from './db.js';
-import { env, llmReady, webDist } from './env.js';
+import { env, llmReady, siteDist, webDist } from './env.js';
 import { LlmError, streamCompletion } from './llm.js';
 import { dayPrompt, skyPrompt, spreadPrompt } from './prompts.js';
 import { FAN_SIZE, PICKS, dayCardFor, dayFallback, drawFan, faceOf, spreadFallback } from './tarot.js';
@@ -50,6 +50,12 @@ const allowLlmCall = (userId: number) => {
   recent.push(Date.now());
   llmCalls.set(userId, recent);
   return true;
+};
+
+const HASHED = ['/_next/static/', '/app/assets/', '/assets/'];
+
+const cacheHeaders = (reply: FastifyReply, path: string) => {
+  if (HASHED.some((part) => path.includes(part))) reply.header('Cache-Control', 'public, max-age=31536000, immutable');
 };
 
 const today = () => dayKey(env.APP_TZ);
@@ -306,12 +312,19 @@ export const createApp = async () => {
     });
   });
 
-  if (existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist });
-    app.setNotFoundHandler((request, reply) =>
-      request.url.startsWith('/api') ? reply.status(404).send({ code: 'not_found' }) : reply.sendFile('index.html')
-    );
-  }
+  const hasWeb = existsSync(webDist);
+  const hasSite = existsSync(siteDist);
+
+  if (hasWeb) await app.register(fastifyStatic, { root: webDist, prefix: '/app/', redirect: true, setHeaders: cacheHeaders });
+  if (hasSite) await app.register(fastifyStatic, { root: siteDist, prefix: '/', decorateReply: !hasWeb, setHeaders: cacheHeaders });
+  if (hasWeb && !hasSite) app.get('/', (_request, reply) => reply.redirect('/app/'));
+
+  app.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith('/api')) return reply.status(404).send({ code: 'not_found' });
+    if (hasWeb && request.url.startsWith('/app')) return reply.sendFile('index.html', webDist);
+    if (hasSite) return reply.status(404).sendFile('404.html', siteDist);
+    return reply.status(404).send({ code: 'not_found' });
+  });
 
   return app;
 };

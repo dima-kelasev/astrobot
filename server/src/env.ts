@@ -8,6 +8,8 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 const schema = z.object({
   BOT_TOKEN: z.string().default(''),
   WEBAPP_URL: z.string().default(''),
+  TELEGRAM_PROXY: z.string().default(''),
+  TELEGRAM_API_ROOT: z.string().default(''),
   LLM_BASE_URL: z.string().default(''),
   LLM_API_KEY: z.string().default(''),
   LLM_MODEL: z.string().default(''),
@@ -25,4 +27,5 @@ const filled = Object.fromEntries(Object.entries(process.env).filter(([, value])
 
 export const env = schema.parse(filled);
 export const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
+export const siteDist = fileURLToPath(new URL('../../site/out', import.meta.url));
 export const llmReady = Boolean(env.LLM_BASE_URL && env.LLM_API_KEY && env.LLM_MODEL);

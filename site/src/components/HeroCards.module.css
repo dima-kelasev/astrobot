@@ -1,0 +1,102 @@
+.fan {
+  position: relative;
+  width: min(100%, 400px);
+  aspect-ratio: 10 / 8;
+  margin: 0 auto;
+}
+
+.card {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  width: 40%;
+  aspect-ratio: 7 / 12;
+  margin-left: -20%;
+  container-type: inline-size;
+  transform-origin: 50% 130%;
+}
+
+.left {
+  transform: rotate(-20deg);
+}
+
+.right {
+  transform: rotate(20deg);
+}
+
+.middle {
+  top: 2%;
+  animation: bob 5s ease-in-out infinite;
+}
+
+.body {
+  position: absolute;
+  inset: 0;
+  border-radius: 7cqw;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.back {
+  background: linear-gradient(160deg, var(--back-a), var(--back-b));
+  color: var(--gold);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+.back::after {
+  content: '';
+  position: absolute;
+  inset: 5cqw;
+  border: 1px solid color-mix(in srgb, var(--gold) 65%, transparent);
+  border-radius: 4cqw;
+}
+
+.backStar {
+  width: 56cqw;
+  height: 56cqw;
+}
+
+.face {
+  background: var(--card-face);
+  color: var(--card-ink);
+  align-content: space-between;
+  justify-items: center;
+  padding: 9cqw 7cqw;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.5),
+    0 0 44px color-mix(in srgb, var(--lilac) 60%, transparent);
+}
+
+.num {
+  font-family: var(--font-card);
+  font-size: 15cqw;
+  line-height: 1;
+}
+
+.emblem {
+  width: 70cqw;
+  height: 70cqw;
+}
+
+.name {
+  font-family: var(--font-card);
+  font-size: 13cqw;
+  line-height: 1.05;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .middle {
+    animation: none;
+  }
+}

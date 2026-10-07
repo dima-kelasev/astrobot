@@ -4,16 +4,18 @@
   "version": "0.1.0",
   "workspaces": [
     "server",
-    "web"
+    "web",
+    "site"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "concurrently -n server,web -c magenta,cyan \"npm run dev -w server\" \"npm run dev -w web\"",
-    "build": "npm run build -w web && npm run build -w server",
+    "build": "npm run build -w site && npm run build -w web && npm run build -w server",
     "start": "npm run start -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w site",
+    "dev:site": "npm run dev -w site"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"
