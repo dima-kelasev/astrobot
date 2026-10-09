@@ -37,6 +37,9 @@ class HttpError extends Error {
   }
 }
 
+const statusOf = (error: unknown) =>
+  typeof error === 'object' && error !== null && 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : 500;
+
 const LLM_CALLS_PER_HOUR = 20;
 const llmCalls = new Map<number, number[]>();
 
@@ -171,6 +174,8 @@ export const createApp = async () => {
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof HttpError) return reply.status(error.status).send({ code: error.code });
+    const status = statusOf(error);
+    if (status >= 400 && status < 500) return reply.status(status).send({ code: 'bad_request' });
     console.error('Ошибка сервера:', error);
     return reply.status(500).send({ code: 'server_error' });
   });
