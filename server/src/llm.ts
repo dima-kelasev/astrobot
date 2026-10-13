@@ -33,7 +33,9 @@ const codeFor = (status: number) => {
   return 'upstream_error';
 };
 
-export const streamCompletion = async (prompt: string, onDelta: (delta: string) => void, signal: AbortSignal) => {
+export type CompletionOptions = { maxTokens?: number; temperature?: number };
+
+export const streamCompletion = async (prompt: string, onDelta: (delta: string) => void, signal: AbortSignal, options: CompletionOptions = {}) => {
   if (!llmReady) throw new LlmError('no_key');
   const base = env.LLM_BASE_URL.replace(/\/+$/, '');
   let response: Response;
@@ -44,8 +46,8 @@ export const streamCompletion = async (prompt: string, onDelta: (delta: string) 
       body: JSON.stringify({
         model: env.LLM_MODEL,
         stream: true,
-        max_tokens: 700,
-        temperature: 0.9,
+        max_tokens: options.maxTokens ?? 900,
+        temperature: options.temperature ?? 0.9,
         messages: [{ role: 'user', content: prompt }],
         ...extraBody
       }),
@@ -97,4 +99,14 @@ export const streamCompletion = async (prompt: string, onDelta: (delta: string) 
     throw new LlmError('empty_answer');
   }
   return text;
+};
+
+export const completeText = async (prompt: string, options: CompletionOptions = {}, timeoutMs = 45000) => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    return (await streamCompletion(prompt, () => {}, ctl.signal, options)).trim();
+  } finally {
+    clearTimeout(timer);
+  }
 };

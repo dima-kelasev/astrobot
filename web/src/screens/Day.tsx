@@ -15,9 +15,8 @@ export const Day = () => {
   const status = useAppSelector((state) => state.day.status);
   const data = useAppSelector((state) => state.day.data);
   const errorCode = useAppSelector((state) => state.day.errorCode);
-  const birthDate = useAppSelector((state) => state.profile.me?.birthDate ?? null);
   const card = data?.card ?? null;
-  const readingKey = data?.opened && birthDate ? `${data.day}:${birthDate}` : null;
+  const readingKey = data?.opened ? data.day : null;
 
   useEffect(() => {
     if (store.getState().day.status !== 'idle') return;
@@ -37,7 +36,7 @@ export const Day = () => {
     <section className={ui.screen}>
       <div className={cx(ui.head, ui.headCenter)}>
         <h1 className={ui.title}>Карта дня</h1>
-        <p className={ui.lead}>Выбирается по сегодняшней дате и вашей дате рождения, поэтому до полуночи не меняется.</p>
+        <p className={ui.lead}>Одна карта на весь день. До полуночи она не меняется.</p>
       </div>
       <div className={styles.wrap}>
         <button

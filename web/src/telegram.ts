@@ -37,5 +37,12 @@ export const telegram = {
   },
   backButton: (visible: boolean) => safe(() => postEvent('web_app_setup_back_button', { is_visible: visible })),
   onBack: (handler: () => void) => on('back_button_pressed', handler),
-  impact: (style: 'light' | 'medium') => safe(() => postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: style }))
+  impact: (style: 'light' | 'medium') => safe(() => postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: style })),
+  openLink: (url: string) => {
+    if (inTelegram) {
+      safe(() => postEvent('web_app_open_link', { url }));
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  }
 };

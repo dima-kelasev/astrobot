@@ -27,9 +27,55 @@ const ARCANA = [
   { name: 'Мир', up: 'завершённость, целостность, новый уровень', rev: 'незавершённость, последний шаг' }
 ];
 
-export const POSITIONS = ['Что есть', 'Что мешает', 'Что поможет'];
-export const FAN_SIZE = 9;
-export const PICKS = 3;
+export const THEMES = [
+  {
+    key: 'general',
+    title: 'Расклад на вопрос',
+    description: 'Три карты: что есть, что мешает и что поможет.',
+    positions: ['Что есть', 'Что мешает', 'Что поможет'],
+    questionRequired: true,
+    hint: 'Например: на чём сосредоточиться в этом месяце?'
+  },
+  {
+    key: 'love',
+    title: 'Любовь и отношения',
+    description: 'Что происходит между вами и куда это может привести.',
+    positions: ['Вы в этих отношениях', 'Что между вами сейчас', 'Что мешает', 'Что поможет', 'Куда это ведёт'],
+    questionRequired: false,
+    hint: 'Можно уточнить: о ком или о какой ситуации речь'
+  },
+  {
+    key: 'work',
+    title: 'Работа и деньги',
+    description: 'Ваше положение, препятствия и на что опереться.',
+    positions: ['Где вы сейчас', 'Что мешает', 'Ваша опора', 'Совет'],
+    questionRequired: false,
+    hint: 'Можно уточнить: работа, проект, доход'
+  },
+  {
+    key: 'choice',
+    title: 'Трудный выбор',
+    description: 'Два пути рядом, чтобы спокойно их сравнить.',
+    positions: ['Суть выбора', 'Первый путь', 'Второй путь', 'Что важно учесть'],
+    questionRequired: false,
+    hint: 'Опишите оба варианта, например: остаться или уйти'
+  },
+  {
+    key: 'repeat',
+    title: 'Повторяющаяся ситуация',
+    description: 'Почему сценарий повторяется и как из него выйти.',
+    positions: ['Что повторяется', 'Откуда это', 'Что это вам даёт', 'Как выйти из круга'],
+    questionRequired: false,
+    hint: 'Можно описать, что именно повторяется'
+  }
+] as const;
+
+export type ThemeKey = (typeof THEMES)[number]['key'];
+export type Theme = (typeof THEMES)[number];
+
+export const themeOf = (key: string): Theme => THEMES.find((theme) => theme.key === key) ?? THEMES[0];
+
+export const fanSizeFor = (picks: number) => (picks <= 3 ? 9 : 12);
 
 export type DrawnCard = { i: number; rev: boolean };
 
@@ -44,13 +90,13 @@ export const faceOf = (card: DrawnCard): CardFace => ({
   orientation: card.rev ? 'перевёрнутая' : 'прямая'
 });
 
-export const drawFan = (): DrawnCard[] => {
+export const drawCards = (count: number): DrawnCard[] => {
   const deck = ARCANA.map((_, i) => i);
   for (let i = deck.length - 1; i > 0; i--) {
     const j = randomInt(i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
-  return deck.slice(0, FAN_SIZE).map((i) => ({ i, rev: randomInt(2) === 1 }));
+  return deck.slice(0, count).map((i) => ({ i, rev: randomInt(2) === 1 }));
 };
 
 const hash = (text: string) => {
@@ -62,8 +108,8 @@ const hash = (text: string) => {
   return h >>> 0;
 };
 
-export const dayCardFor = (userId: number, birthDate: string, day: string): DrawnCard => {
-  const h = hash(`${userId}|${birthDate}|${day}`);
+export const dayCardFor = (userId: number, day: string): DrawnCard => {
+  const h = hash(`${userId}|${day}`);
   return { i: h % ARCANA.length, rev: ((h >>> 8) & 1) === 1 };
 };
 
@@ -72,5 +118,5 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 export const dayFallback = (face: CardFace) =>
   `Сегодня с вами ${face.name}${face.reversed ? ' в перевёрнутом положении' : ''}. Темы дня: ${face.meaning}.`;
 
-export const spreadFallback = (faces: CardFace[]) =>
-  faces.map((face, k) => `${POSITIONS[k]}: ${face.name}${face.reversed ? ' (перевёрнутая)' : ''}. ${capital(face.meaning)}.`).join('\n\n');
+export const spreadFallback = (faces: CardFace[], positions: readonly string[]) =>
+  faces.map((face, k) => `${positions[k] ?? `Карта ${k + 1}`}: ${face.name}${face.reversed ? ' (перевёрнутая)' : ''}. ${capital(face.meaning)}.`).join('\n\n');

@@ -1,6 +1,26 @@
 import type { z } from 'zod';
 import { telegram } from '../telegram';
-import { daySchema, errorSchema, meSchema, pickSchema, skySchema, spreadStartSchema, streamEventSchema } from './schemas';
+import {
+  ascSchema,
+  citiesSchema,
+  daySchema,
+  deletedSchema,
+  errorSchema,
+  historyItemSchema,
+  historySchema,
+  meSchema,
+  natalSchema,
+  partnerAddSchema,
+  partnerDetailSchema,
+  partnersSchema,
+  pickSchema,
+  questionStartSchema,
+  skySchema,
+  spreadStartSchema,
+  streamEventSchema,
+  themesSchema,
+  whySchema
+} from './schemas';
 
 export class ApiError extends Error {
   status: number;
@@ -51,14 +71,32 @@ const request = async <T>(schema: z.ZodType<T>, path: string, options: RequestOp
   return parsed.data;
 };
 
+export type BirthInput = { date: string; time: string | null; placeId: number | null; placeName?: string; keepPlace?: true };
+
+export type MePatch = { consent?: true; birth?: BirthInput; notifyMorning?: boolean; notifyEvening?: boolean };
+
 export const api = {
   me: (signal?: AbortSignal) => request(meSchema, '/api/me', { signal }),
-  updateMe: (patch: { birthDate?: string; notify?: boolean }) => request(meSchema, '/api/me', { method: 'PUT', body: patch }),
+  updateMe: (patch: MePatch) => request(meSchema, '/api/me', { method: 'PUT', body: patch }),
+  deleteMe: () => request(deletedSchema, '/api/me', { method: 'DELETE' }),
+  cities: (query: string, signal?: AbortSignal) => request(citiesSchema, `/api/cities?q=${encodeURIComponent(query)}`, { signal }),
   sky: (signal?: AbortSignal) => request(skySchema, '/api/sky', { signal }),
   day: (signal?: AbortSignal) => request(daySchema, '/api/day', { signal }),
   openDay: () => request(daySchema, '/api/day/open', { method: 'POST' }),
-  startSpread: (question: string) => request(spreadStartSchema, '/api/spreads', { method: 'POST', body: { question } }),
-  pick: (id: string, index: number) => request(pickSchema, `/api/spreads/${id}/pick`, { method: 'POST', body: { index } })
+  themes: (signal?: AbortSignal) => request(themesSchema, '/api/themes', { signal }),
+  startSpread: (theme: string, question: string) => request(spreadStartSchema, '/api/spreads', { method: 'POST', body: { theme, question } }),
+  pick: (id: string, index: number) => request(pickSchema, `/api/spreads/${id}/pick`, { method: 'POST', body: { index } }),
+  natal: (signal?: AbortSignal) => request(natalSchema, '/api/natal', { signal }),
+  asc: (signal?: AbortSignal) => request(ascSchema, '/api/asc', { signal }),
+  why: (signal?: AbortSignal) => request(whySchema, '/api/why', { signal }),
+  partners: (signal?: AbortSignal) => request(partnersSchema, '/api/partners', { signal }),
+  addPartner: (body: BirthInput & { name: string }) => request(partnerAddSchema, '/api/partners', { method: 'POST', body }),
+  partner: (id: string, signal?: AbortSignal) => request(partnerDetailSchema, `/api/partners/${id}`, { signal }),
+  deletePartner: (id: string) => request(deletedSchema, `/api/partners/${id}`, { method: 'DELETE' }),
+  ask: (text: string) => request(questionStartSchema, '/api/questions', { method: 'POST', body: { text } }),
+  history: (signal?: AbortSignal) => request(historySchema, '/api/history', { signal }),
+  historyItem: (kind: string, key: string, signal?: AbortSignal) =>
+    request(historyItemSchema, `/api/history/item?kind=${encodeURIComponent(kind)}&key=${encodeURIComponent(key)}`, { signal })
 };
 
 export type ReadingDone = { source: 'ai' | 'template'; note: string | null };

@@ -2,7 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import { api, codeOf } from '../api/client';
 import type { Day } from '../api/schemas';
 import { createAppAsyncThunk } from './hooks';
-import { updateMe } from './profileSlice';
+import { birthChanged } from './profileSlice';
 
 type DayState = { status: 'idle' | 'loading' | 'ready' | 'error'; data: Day | null; opening: boolean; errorCode: string | null };
 
@@ -67,7 +67,7 @@ const daySlice = createSlice({
         state.opening = false;
         state.errorCode = action.payload ?? 'unknown';
       })
-      .addCase(updateMe.fulfilled, (state, action) => (action.meta.arg.birthDate === undefined ? state : initialState));
+      .addMatcher(birthChanged, () => initialState);
   }
 });
 

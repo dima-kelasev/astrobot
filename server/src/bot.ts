@@ -2,8 +2,8 @@ import type { Agent } from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Markup, Telegraf, TelegramError } from 'telegraf';
-import { upsertUser, type User } from './db.js';
-import { env } from './env.js';
+import { deleteUserData, upsertUser, type Slot, type User } from './db.js';
+import { env, privacyUrl } from './env.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
@@ -11,16 +11,34 @@ const RETRY_MS = 15000;
 
 const hasWebApp = env.WEBAPP_URL.startsWith('https://');
 
-const openKeyboard = () => Markup.inlineKeyboard([Markup.button.webApp('Открыть Астробота', env.WEBAPP_URL)]);
+const appUrl = (screen?: string) => {
+  if (!screen) return env.WEBAPP_URL;
+  const url = new URL(env.WEBAPP_URL);
+  url.searchParams.set('s', screen);
+  return url.toString();
+};
+
+const openKeyboard = () => Markup.inlineKeyboard([Markup.button.webApp('Открыть Астробота', appUrl())]);
+
+const slotKeyboard = (slot: Slot) =>
+  slot === 'morning'
+    ? Markup.inlineKeyboard([[Markup.button.webApp('Гороскоп на сегодня', appUrl('sky'))], [Markup.button.webApp('Карта дня', appUrl('day'))]])
+    : Markup.inlineKeyboard([Markup.button.webApp('Разложить карты', appUrl('topics'))]);
 
 const WELCOME = [
   'Здравствуйте! Я Астробот.',
   '',
   'Что умею:',
-  '• расклад Таро на ваш вопрос',
-  '• карта дня',
-  '• гороскоп по реальному положению Солнца и Луны'
+  '• отвечать на ваш вопрос раскладом Таро или по натальной карте',
+  '• натальная карта, асцендент и «Почему сейчас так?»',
+  '• совместимость пары',
+  '• расклады по темам: любовь, работа, трудный выбор',
+  '• гороскоп и карта дня каждый день',
+  '',
+  'Утром и вечером я присылаю короткое сообщение. Отключить можно в профиле.'
 ].join('\n');
+
+const DELETE_TEXT = 'Удалить все ваши данные: дату, время и место рождения, расклады, историю и данные партнёров? Это нельзя отменить.';
 
 const proxyAgent = (): Agent | undefined => {
   if (!env.TELEGRAM_PROXY) return undefined;
@@ -51,9 +69,26 @@ export const createBot = () => {
   });
 
   bot.help(async (ctx) => {
-    const text = 'Нажмите кнопку ниже, чтобы открыть мини-апп. Утренний гороскоп включается в профиле.';
+    const lines = ['Нажмите кнопку ниже, чтобы открыть мини-апп. Уведомления отключаются в профиле.', 'Удалить свои данные: /delete'];
+    if (privacyUrl) lines.push(`Политика обработки данных: ${privacyUrl}`);
+    const text = lines.join('\n');
     if (hasWebApp) await ctx.reply(text, openKeyboard());
     else await ctx.reply(text);
+  });
+
+  bot.command('delete', async (ctx) => {
+    await ctx.reply(DELETE_TEXT, Markup.inlineKeyboard([Markup.button.callback('Удалить данные', 'delete_confirm'), Markup.button.callback('Отмена', 'delete_cancel')]));
+  });
+
+  bot.action('delete_confirm', async (ctx) => {
+    deleteUserData(ctx.from.id);
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('Ваши данные удалены. Если снова откроете бота, начнём с чистого листа.');
+  });
+
+  bot.action('delete_cancel', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('Удаление отменено.');
   });
 
   bot.catch((error) => {
@@ -66,7 +101,8 @@ export const createBot = () => {
 const setupBot = async (bot: Telegraf) => {
   await bot.telegram.setMyCommands([
     { command: 'start', description: 'Открыть Астробота' },
-    { command: 'help', description: 'Помощь' }
+    { command: 'help', description: 'Помощь' },
+    { command: 'delete', description: 'Удалить мои данные' }
   ]);
   if (hasWebApp) {
     await bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'Открыть', web_app: { url: env.WEBAPP_URL } } });
@@ -119,14 +155,14 @@ export const runBot = (bot: Telegraf) => {
   };
 };
 
-export const sendMorning = async (bot: Telegraf, user: User, text: string): Promise<SendResult> => {
+export const sendNotification = async (bot: Telegraf, user: User, slot: Slot, text: string): Promise<SendResult> => {
   try {
-    if (hasWebApp) await bot.telegram.sendMessage(user.id, text, openKeyboard());
+    if (hasWebApp) await bot.telegram.sendMessage(user.id, text, slotKeyboard(slot));
     else await bot.telegram.sendMessage(user.id, text);
     return 'sent';
   } catch (error) {
-    if (error instanceof TelegramError && error.code === 403) return 'blocked';
-    console.error(`Не удалось отправить утреннее сообщение ${user.id}:`, error);
+    if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) return 'blocked';
+    console.error(`Не удалось отправить уведомление ${user.id}:`, error);
     return 'failed';
   }
 };

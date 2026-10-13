@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { NeedBirth } from '../components/NeedBirth';
 import { Reading } from '../components/Reading';
 import { ZodiacWheel } from '../components/ZodiacWheel';
 import { cx } from '../lib/cx';
@@ -13,14 +14,14 @@ export const Sky = () => {
   const store = useAppStore();
   const status = useAppSelector((state) => state.sky.status);
   const sky = useAppSelector((state) => state.sky.data);
-  const birthDate = useAppSelector((state) => state.profile.me?.birthDate ?? null);
-  const readingKey = sky && birthDate ? `${sky.day}:${birthDate}` : null;
+  const birth = useAppSelector((state) => state.profile.me?.birth ?? null);
+  const readingKey = sky && birth ? `${sky.day}|${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
 
   useEffect(() => {
-    if (store.getState().sky.status !== 'idle') return;
+    if (!birth || store.getState().sky.status !== 'idle') return;
     const request = dispatch(fetchSky());
     return () => request.abort();
-  }, [dispatch, store]);
+  }, [birth, dispatch, store]);
 
   useEffect(() => {
     if (!readingKey) return;
@@ -29,6 +30,17 @@ export const Sky = () => {
     const request = dispatch(fetchReading({ kind: 'sky', key: readingKey, path: '/api/sky/reading' }));
     return () => request.abort();
   }, [readingKey, dispatch, store]);
+
+  if (!birth) {
+    return (
+      <section className={ui.screen}>
+        <div className={ui.head}>
+          <h1 className={ui.title}>Гороскоп на сегодня</h1>
+        </div>
+        <NeedBirth returnTo="sky" title="Личный гороскоп" text="Гороскоп считается по Луне и транзитам к вашей карте рождения. Укажите хотя бы дату рождения." />
+      </section>
+    );
+  }
 
   if (status === 'error') {
     return (
@@ -64,7 +76,7 @@ export const Sky = () => {
           ))}
         </dl>
       </div>
-      <p className={ui.hint}>Положения Солнца и Луны рассчитаны на полдень. Треугольник на круге отмечает ваше Солнце при рождении.</p>
+      <p className={ui.hint}>Положения рассчитаны на полдень. Треугольник на круге отмечает ваше Солнце при рождении.</p>
       <Reading
         kind="sky"
         action={

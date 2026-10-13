@@ -1,0 +1,24 @@
+.badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.glyph {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  color: var(--card-ink);
+  background: radial-gradient(circle at 34% 30%, #fff1cf, var(--gold) 60%, #b9853a);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--gold) 50%, transparent);
+}
+
+.sign {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 22px;
+}

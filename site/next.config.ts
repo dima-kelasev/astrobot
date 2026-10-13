@@ -22,7 +22,10 @@ const config: NextConfig = {
   env: {
     NEXT_PUBLIC_SITE_URL: siteUrl,
     NEXT_PUBLIC_BOT_USERNAME: (process.env.BOT_USERNAME ?? '').replace(/^@/, ''),
-    NEXT_PUBLIC_METRIKA_ID: process.env.METRIKA_ID ?? ''
+    NEXT_PUBLIC_METRIKA_ID: process.env.METRIKA_ID ?? '',
+    NEXT_PUBLIC_OPERATOR_NAME: process.env.OPERATOR_NAME ?? '',
+    NEXT_PUBLIC_CONTACT_EMAIL: process.env.CONTACT_EMAIL ?? '',
+    NEXT_PUBLIC_LLM_PROVIDER: process.env.LLM_BASE_URL?.includes('deepseek') ? 'DeepSeek (Китай)' : ''
   }
 };
 

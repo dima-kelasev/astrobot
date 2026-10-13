@@ -1,27 +1,56 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { api, codeOf } from '../api/client';
-import type { Card } from '../api/schemas';
+import type { Card, Theme } from '../api/schemas';
 import { createAppAsyncThunk } from './hooks';
-
-export const PICKS = 3;
+import { openTheme } from './navSlice';
+import { limitsChanged } from './profileSlice';
 
 type PickEntry = { index: number; card: Card | null };
 
 type SpreadState = {
+  themes: Theme[];
+  themesStatus: 'idle' | 'loading' | 'ready' | 'error';
+  theme: string;
   step: 'ask' | 'pick' | 'done';
   question: string;
   id: string | null;
+  title: string;
+  positions: string[];
   size: number;
   picks: PickEntry[];
   starting: boolean;
   errorCode: string | null;
 };
 
-const initialState: SpreadState = { step: 'ask', question: '', id: null, size: 0, picks: [], starting: false, errorCode: null };
+const initialState: SpreadState = {
+  themes: [],
+  themesStatus: 'idle',
+  theme: 'general',
+  step: 'ask',
+  question: '',
+  id: null,
+  title: '',
+  positions: [],
+  size: 0,
+  picks: [],
+  starting: false,
+  errorCode: null
+};
 
-export const startSpread = createAppAsyncThunk('spread/start', async (question: string, { rejectWithValue }) => {
+export const fetchThemes = createAppAsyncThunk('spread/themes', async (_: void, { signal, rejectWithValue }) => {
   try {
-    return await api.startSpread(question);
+    return (await api.themes(signal)).themes;
+  } catch (error) {
+    return rejectWithValue(codeOf(error));
+  }
+});
+
+export const startSpread = createAppAsyncThunk('spread/start', async (_: void, { getState, dispatch, rejectWithValue }) => {
+  const { theme, question } = getState().spread;
+  try {
+    const result = await api.startSpread(theme, question.trim());
+    dispatch(limitsChanged(result.limits));
+    return result;
   } catch (error) {
     return rejectWithValue(codeOf(error));
   }
@@ -40,8 +69,8 @@ export const pickCard = createAppAsyncThunk(
   },
   {
     condition: (index, { getState }) => {
-      const { step, id, picks } = getState().spread;
-      return step === 'pick' && id !== null && picks.length < PICKS && !picks.some((pick) => pick.index === index);
+      const { step, id, picks, positions } = getState().spread;
+      return step === 'pick' && id !== null && picks.length < positions.length && !picks.some((pick) => pick.index === index);
     }
   }
 );
@@ -57,10 +86,27 @@ const spreadSlice = createSlice({
     finishSpread: (state) => {
       state.step = 'done';
     },
-    resetSpread: () => initialState
+    resetSpread: (state) => ({ ...initialState, themes: state.themes, themesStatus: state.themesStatus, theme: state.theme })
   },
   extraReducers: (builder) => {
     builder
+      .addCase(openTheme, (state, action) => ({
+        ...initialState,
+        themes: state.themes,
+        themesStatus: state.themesStatus,
+        theme: action.payload,
+        question: action.payload === state.theme && state.step === 'ask' ? state.question : ''
+      }))
+      .addCase(fetchThemes.pending, (state) => {
+        state.themesStatus = 'loading';
+      })
+      .addCase(fetchThemes.fulfilled, (state, action) => {
+        state.themesStatus = 'ready';
+        state.themes = action.payload;
+      })
+      .addCase(fetchThemes.rejected, (state, action) => {
+        state.themesStatus = action.meta.aborted ? 'idle' : 'error';
+      })
       .addCase(startSpread.pending, (state) => {
         state.starting = true;
         state.errorCode = null;
@@ -69,6 +115,8 @@ const spreadSlice = createSlice({
         state.starting = false;
         state.step = 'pick';
         state.id = action.payload.id;
+        state.title = action.payload.title;
+        state.positions = action.payload.positions;
         state.size = action.payload.size;
         state.picks = [];
       })

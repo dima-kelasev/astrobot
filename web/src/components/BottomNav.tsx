@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { go, type Tab } from '../store/navSlice';
+import { go, tabOf, type Tab } from '../store/navSlice';
 import styles from './BottomNav.module.css';
 
 const ITEMS: { tab: Tab; label: string; icon: ReactNode }[] = [
-  { tab: 'menu', label: 'Меню', icon: <path d="M4 11.5 12 4l8 7.5V20h-5.5v-5.5h-5V20H4z" strokeLinejoin="round" /> },
+  { tab: 'home', label: 'Главная', icon: <path d="M4 11.5 12 4l8 7.5V20h-5.5v-5.5h-5V20H4z" strokeLinejoin="round" /> },
   {
     tab: 'sky',
     label: 'Гороскоп',
@@ -16,9 +16,14 @@ const ITEMS: { tab: Tab; label: string; icon: ReactNode }[] = [
     )
   },
   {
-    tab: 'plan',
-    label: 'Подписка',
-    icon: <path d="M12 3C12.8 8.2 15.8 11.2 21 12C15.8 12.8 12.8 15.8 12 21C11.2 15.8 8.2 12.8 3 12C8.2 11.2 11.2 8.2 12 3Z" strokeLinejoin="round" />
+    tab: 'history',
+    label: 'История',
+    icon: (
+      <>
+        <path d="M6 4h9l3 3v13H6z" strokeLinejoin="round" />
+        <path d="M9 10h6M9 14h6M9 18h3" strokeLinecap="round" />
+      </>
+    )
   },
   {
     tab: 'profile',
@@ -35,7 +40,7 @@ const ITEMS: { tab: Tab; label: string; icon: ReactNode }[] = [
 export const BottomNav = () => {
   const dispatch = useAppDispatch();
   const screen = useAppSelector((state) => state.nav.screen);
-  const active: Tab = screen === 'tarot' || screen === 'day' ? 'menu' : screen;
+  const active: Tab = tabOf(screen);
   return (
     <nav className={styles.nav} aria-label="Разделы">
       {ITEMS.map((item) => (

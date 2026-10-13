@@ -1,33 +1,99 @@
-import { daySky, signOfBirth } from './astro.js';
+import { daySky } from './astro.js';
 import type { SendResult } from './bot.js';
-import { markNotified, setNotify, usersToNotify, type User } from './db.js';
-import { env } from './env.js';
-import { dayKey, hourIn } from './time.js';
+import { disableNotifications, getBroadcast, markNotified, recentBroadcasts, saveBroadcast, usersToNotify, type Slot, type User } from './db.js';
+import { env, llmReady } from './env.js';
+import { completeText } from './llm.js';
+import { broadcastPrompt } from './prompts.js';
+import { dateFull, dayKey, hourIn } from './time.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const morningText = (user: User, day: string) => {
-  const sky = daySky(day, env.APP_TZ);
-  const sign = user.birthDate ? signOfBirth(user.birthDate).name : '';
-  const hello = user.firstName ? `Доброе утро, ${user.firstName}!` : 'Доброе утро!';
-  return `${hello}\n\n${sky.moonLine} ${sky.phaseTip}\n\nГороскоп${sign ? ` для знака ${sign}` : ''} и карта дня уже ждут.`;
+const FALLBACK: Record<Slot, string[]> = {
+  morning: [
+    'Гороскоп и карта дня уже готовы. Загляните, прежде чем день разгонится.',
+    'Новый день, новая карта. Посмотрите, на что она советует обратить внимание.',
+    'Утро хорошо начинать с ясности. Гороскоп на сегодня ждёт вас.',
+    'Карта дня выбрана. Пара минут, чтобы понять настроение дня.',
+    'Луна сменила положение. Посмотрите, что это значит для вашего дня.',
+    'Ваш гороскоп на сегодня собран по положению Луны и планет.',
+    'Перед делами загляните в карту дня: она подскажет, где быть внимательнее.'
+  ],
+  evening: [
+    'Вечер подходит, чтобы спокойно подумать о том, что волнует. Карты рядом.',
+    'Если за день накопились вопросы, можно разложить карты и посмотреть на них со стороны.',
+    'Есть ситуация, которая не выходит из головы? Расклад поможет её разобрать.',
+    'Тихий вечер хорош для расклада. Задайте вопрос, который давно откладывали.',
+    'Перед сном можно разложить карты на то, что сейчас важно.',
+    'Вечером мысли спокойнее. Хорошее время спросить карты о том, что волнует.',
+    'Расклады по темам ждут: отношения, работа, трудный выбор.'
+  ]
 };
 
-export const notifyOnce = async (send: (user: User, text: string) => Promise<SendResult>, now: Date = new Date()) => {
-  if (hourIn(env.APP_TZ, now) !== env.NOTIFY_HOUR) return 0;
+const pickFallback = (slot: Slot, day: string) => {
+  const list = FALLBACK[slot];
+  const seed = Number(day.replaceAll('-', '')) % list.length;
+  return list[seed];
+};
+
+const BANNED = /(последний шанс|успейте|только сегодня|срочно)/i;
+
+const clean = (text: string) =>
+  text
+    .replace(/^[«"'\s]+|[»"'\s]+$/g, '')
+    .replaceAll('!', '.')
+    .replace(/\s+[—–-]\s+/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const generate = async (slot: Slot, day: string) => {
+  if (!llmReady) return null;
+  try {
+    const sky = daySky(day, env.APP_TZ);
+    const text = clean(await completeText(broadcastPrompt(slot, dateFull(day, env.APP_TZ), sky.moonLine, recentBroadcasts(slot, 7)), { maxTokens: 120, temperature: 1 }, 30000));
+    if (text.length < 15 || text.length > 160 || BANNED.test(text)) return null;
+    return text;
+  } catch (error) {
+    console.error('Не удалось написать текст рассылки:', error);
+    return null;
+  }
+};
+
+export const broadcastText = async (slot: Slot, day: string) => {
+  const saved = getBroadcast(day, slot);
+  if (saved) return saved;
+  const text = (await generate(slot, day)) ?? pickFallback(slot, day);
+  saveBroadcast(day, slot, text);
+  return text;
+};
+
+export type Sender = (user: User, slot: Slot, text: string) => Promise<SendResult>;
+
+const slotAt = (now: Date): Slot | null => {
+  const hour = hourIn(env.APP_TZ, now);
+  if (hour === env.NOTIFY_HOUR) return 'morning';
+  if (hour === env.EVENING_HOUR) return 'evening';
+  return null;
+};
+
+export const notifyOnce = async (send: Sender, now: Date = new Date()) => {
+  const slot = slotAt(now);
+  if (!slot) return 0;
   const day = dayKey(env.APP_TZ, now);
+  const users = usersToNotify(slot, day);
+  if (users.length === 0) return 0;
+  const text = await broadcastText(slot, day);
   let sent = 0;
-  for (const user of usersToNotify(day)) {
-    const result = await send(user, morningText(user, day));
-    if (result === 'blocked') setNotify(user.id, false);
-    if (result !== 'failed') markNotified(user.id, day);
+  for (const user of users) {
+    const result = await send(user, slot, text);
+    if (result === 'blocked') disableNotifications(user.id);
+    if (result !== 'failed') markNotified(user.id, slot, day);
     if (result === 'sent') sent += 1;
-    await sleep(50);
+    await sleep(40);
   }
   return sent;
 };
 
-export const startNotifier = (send: (user: User, text: string) => Promise<SendResult>) => {
+export const startNotifier = (send: Sender) => {
   let running = false;
   const tick = async () => {
     if (running) return;

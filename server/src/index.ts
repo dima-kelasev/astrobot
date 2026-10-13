@@ -1,4 +1,4 @@
-import { createBot, runBot, sendMorning } from './bot.js';
+import { createBot, runBot, sendNotification } from './bot.js';
 import { closeDb } from './db.js';
 import { env, llmReady } from './env.js';
 import { createApp } from './http.js';
@@ -16,7 +16,7 @@ let stopNotifier = () => {};
 if (env.BOT_TOKEN) {
   const bot = createBot();
   stopBot = runBot(bot);
-  stopNotifier = startNotifier((user, text) => sendMorning(bot, user, text));
+  stopNotifier = startNotifier((user, slot, text) => sendNotification(bot, user, slot, text));
 } else {
   console.warn('BOT_TOKEN не задан: бот не запущен, работает только сайт.');
 }

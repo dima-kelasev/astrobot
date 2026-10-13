@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { env } from './env.js';
+import type { Place } from './geo.js';
 import type { DrawnCard } from './tarot.js';
 
 mkdirSync(dirname(env.DB_PATH), { recursive: true });
@@ -44,16 +45,86 @@ db.exec(`
     opened_at TEXT NOT NULL,
     PRIMARY KEY (user_id, day)
   );
+  CREATE TABLE IF NOT EXISTS questions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    text TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    cards TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS questions_user ON questions (user_id, created_at);
+  CREATE TABLE IF NOT EXISTS partners (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    birth_date TEXT NOT NULL,
+    birth_time TEXT,
+    place_name TEXT,
+    place_label TEXT,
+    place_lat REAL,
+    place_lon REAL,
+    place_tz TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS partners_user ON partners (user_id, created_at);
+  CREATE TABLE IF NOT EXISTS usage (
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day, feature)
+  );
+  CREATE TABLE IF NOT EXISTS broadcasts (
+    day TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    text TEXT NOT NULL,
+    PRIMARY KEY (day, slot)
+  );
 `);
+
+const columnRow = z.object({ name: z.string() });
+
+const addColumns = (table: string, columns: [string, string][]) => {
+  const existing = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => columnRow.parse(row).name));
+  for (const [name, type] of columns) if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+};
+
+addColumns('users', [
+  ['birth_time', 'TEXT'],
+  ['place_name', 'TEXT'],
+  ['place_label', 'TEXT'],
+  ['place_lat', 'REAL'],
+  ['place_lon', 'REAL'],
+  ['place_tz', 'TEXT'],
+  ['consent_at', 'TEXT'],
+  ['notify_morning', 'INTEGER NOT NULL DEFAULT 1'],
+  ['notify_evening', 'INTEGER NOT NULL DEFAULT 1'],
+  ['last_morning_day', 'TEXT'],
+  ['last_evening_day', 'TEXT']
+]);
+addColumns('spreads', [
+  ['theme', "TEXT NOT NULL DEFAULT 'general'"],
+  ['size', 'INTEGER NOT NULL DEFAULT 9']
+]);
 
 const userRow = z.object({
   id: z.number(),
   first_name: z.string(),
   birth_date: z.string().nullable(),
-  notify: z.number(),
-  last_notified_day: z.string().nullable(),
+  birth_time: z.string().nullable(),
+  place_name: z.string().nullable(),
+  place_label: z.string().nullable(),
+  place_lat: z.number().nullable(),
+  place_lon: z.number().nullable(),
+  place_tz: z.string().nullable(),
+  consent_at: z.string().nullable(),
+  notify_morning: z.number(),
+  notify_evening: z.number(),
   credits: z.number(),
-  subscribed_until: z.string().nullable()
+  subscribed_until: z.string().nullable(),
+  created_at: z.string()
 });
 
 const spreadRow = z.object({
@@ -63,9 +134,36 @@ const spreadRow = z.object({
   question: z.string(),
   deck: z.string(),
   picks: z.string(),
-  paid: z.number()
+  theme: z.string(),
+  size: z.number(),
+  created_at: z.string()
 });
 
+const questionRow = z.object({
+  id: z.string(),
+  user_id: z.number(),
+  day: z.string(),
+  text: z.string(),
+  tool: z.string(),
+  cards: z.string(),
+  created_at: z.string()
+});
+
+const partnerRow = z.object({
+  id: z.string(),
+  user_id: z.number(),
+  name: z.string(),
+  birth_date: z.string(),
+  birth_time: z.string().nullable(),
+  place_name: z.string().nullable(),
+  place_label: z.string().nullable(),
+  place_lat: z.number().nullable(),
+  place_lon: z.number().nullable(),
+  place_tz: z.string().nullable(),
+  created_at: z.string()
+});
+
+const readingRow = z.object({ kind: z.string(), key: z.string(), text: z.string(), created_at: z.string() });
 const deckSchema = z.array(z.object({ i: z.number(), rev: z.boolean() }));
 const picksSchema = z.array(z.number());
 const countRow = z.object({ n: z.number() });
@@ -75,7 +173,11 @@ export type User = {
   id: number;
   firstName: string;
   birthDate: string | null;
-  notify: boolean;
+  birthTime: string | null;
+  place: Place | null;
+  consentAt: string | null;
+  notifyMorning: boolean;
+  notifyEvening: boolean;
   credits: number;
   subscribedUntil: string | null;
 };
@@ -84,12 +186,38 @@ export type Spread = {
   id: string;
   userId: number;
   day: string;
+  theme: string;
   question: string;
+  size: number;
   deck: DrawnCard[];
   picks: number[];
+  createdAt: string;
 };
 
-export type ReadingKind = 'sky' | 'day' | 'spread';
+export type Question = { id: string; userId: number; day: string; text: string; tool: string; cards: DrawnCard[]; createdAt: string };
+
+export type Partner = {
+  id: string;
+  userId: number;
+  name: string;
+  birthDate: string;
+  birthTime: string | null;
+  place: Place | null;
+  createdAt: string;
+};
+
+export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question';
+
+const placeOf = (r: {
+  place_name: string | null;
+  place_label: string | null;
+  place_lat: number | null;
+  place_lon: number | null;
+  place_tz: string | null;
+}): Place | null =>
+  r.place_name !== null && r.place_lat !== null && r.place_lon !== null && r.place_tz !== null
+    ? { name: r.place_name, label: r.place_label ?? '', lat: r.place_lat, lon: r.place_lon, tz: r.place_tz }
+    : null;
 
 const toUser = (row: unknown): User | null => {
   if (row === undefined) return null;
@@ -98,7 +226,11 @@ const toUser = (row: unknown): User | null => {
     id: r.id,
     firstName: r.first_name,
     birthDate: r.birth_date,
-    notify: r.notify === 1,
+    birthTime: r.birth_time,
+    place: placeOf(r),
+    consentAt: r.consent_at,
+    notifyMorning: r.notify_morning === 1,
+    notifyEvening: r.notify_evening === 1,
     credits: r.credits,
     subscribedUntil: r.subscribed_until
   };
@@ -111,10 +243,25 @@ const toSpread = (row: unknown): Spread | null => {
     id: r.id,
     userId: r.user_id,
     day: r.day,
+    theme: r.theme,
     question: r.question,
+    size: r.size,
     deck: deckSchema.parse(JSON.parse(r.deck)),
-    picks: picksSchema.parse(JSON.parse(r.picks))
+    picks: picksSchema.parse(JSON.parse(r.picks)),
+    createdAt: r.created_at
   };
+};
+
+const toQuestion = (row: unknown): Question | null => {
+  if (row === undefined) return null;
+  const r = questionRow.parse(row);
+  return { id: r.id, userId: r.user_id, day: r.day, text: r.text, tool: r.tool, cards: deckSchema.parse(JSON.parse(r.cards)), createdAt: r.created_at };
+};
+
+const toPartner = (row: unknown): Partner | null => {
+  if (row === undefined) return null;
+  const r = partnerRow.parse(row);
+  return { id: r.id, userId: r.user_id, name: r.name, birthDate: r.birth_date, birthTime: r.birth_time, place: placeOf(r), createdAt: r.created_at };
 };
 
 const now = () => new Date().toISOString();
@@ -131,37 +278,97 @@ export const upsertUser = (id: number, firstName: string): User => {
   return user;
 };
 
-export const setBirthDate = (id: number, birthDate: string) => {
-  db.prepare('UPDATE users SET birth_date = ? WHERE id = ?').run(birthDate, id);
+export const setConsent = (id: number) => {
+  db.prepare('UPDATE users SET consent_at = COALESCE(consent_at, ?) WHERE id = ?').run(now(), id);
 };
 
-export const setNotify = (id: number, notify: boolean) => {
-  db.prepare('UPDATE users SET notify = ? WHERE id = ?').run(notify ? 1 : 0, id);
+export const setBirth = (id: number, birthDate: string, birthTime: string | null, place: Place | null) => {
+  db.prepare(
+    'UPDATE users SET birth_date = ?, birth_time = ?, place_name = ?, place_label = ?, place_lat = ?, place_lon = ?, place_tz = ? WHERE id = ?'
+  ).run(birthDate, birthTime, place?.name ?? null, place?.label ?? null, place?.lat ?? null, place?.lon ?? null, place?.tz ?? null, id);
 };
 
-export const takeCredit = (id: number) =>
-  db.prepare('UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0').run(id).changes === 1;
+export const setNotifications = (id: number, patch: { morning?: boolean; evening?: boolean }) => {
+  if (patch.morning !== undefined) db.prepare('UPDATE users SET notify_morning = ? WHERE id = ?').run(patch.morning ? 1 : 0, id);
+  if (patch.evening !== undefined) db.prepare('UPDATE users SET notify_evening = ? WHERE id = ?').run(patch.evening ? 1 : 0, id);
+};
 
-export const countFreeSpreads = (userId: number, day: string) =>
-  countRow.parse(db.prepare('SELECT COUNT(*) AS n FROM spreads WHERE user_id = ? AND day = ? AND paid = 0').get(userId, day)).n;
+export const deleteUserData = (id: number) => {
+  for (const table of ['readings', 'spreads', 'questions', 'partners', 'usage', 'day_cards']) {
+    db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(id);
+  }
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+};
 
-export const createSpread = (spread: Spread, paid: boolean) => {
-  db.prepare('INSERT INTO spreads (id, user_id, day, question, deck, picks, paid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-    spread.id,
-    spread.userId,
-    spread.day,
-    spread.question,
-    JSON.stringify(spread.deck),
-    JSON.stringify(spread.picks),
-    paid ? 1 : 0,
-    now()
-  );
+export const usageOf = (userId: number, day: string, feature: string) => {
+  const row = db.prepare('SELECT n FROM usage WHERE user_id = ? AND day = ? AND feature = ?').get(userId, day, feature);
+  return row === undefined ? 0 : countRow.parse(row).n;
+};
+
+export const addUsage = (userId: number, day: string, feature: string) => {
+  db.prepare(
+    `INSERT INTO usage (user_id, day, feature, n) VALUES (?, ?, ?, 1)
+     ON CONFLICT (user_id, day, feature) DO UPDATE SET n = n + 1`
+  ).run(userId, day, feature);
+};
+
+export const createSpread = (spread: Spread) => {
+  db.prepare(
+    'INSERT INTO spreads (id, user_id, day, question, deck, picks, paid, theme, size, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
+  ).run(spread.id, spread.userId, spread.day, spread.question, JSON.stringify(spread.deck), JSON.stringify(spread.picks), spread.theme, spread.size, spread.createdAt);
 };
 
 export const getSpread = (id: string) => toSpread(db.prepare('SELECT * FROM spreads WHERE id = ?').get(id));
 
 export const setPicks = (id: string, picks: number[]) => {
   db.prepare('UPDATE spreads SET picks = ? WHERE id = ?').run(JSON.stringify(picks), id);
+};
+
+export const createQuestion = (question: Question) => {
+  db.prepare('INSERT INTO questions (id, user_id, day, text, tool, cards, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    question.id,
+    question.userId,
+    question.day,
+    question.text,
+    question.tool,
+    JSON.stringify(question.cards),
+    question.createdAt
+  );
+};
+
+export const getQuestion = (id: string) => toQuestion(db.prepare('SELECT * FROM questions WHERE id = ?').get(id));
+
+export const createPartner = (partner: Partner) => {
+  db.prepare(
+    `INSERT INTO partners (id, user_id, name, birth_date, birth_time, place_name, place_label, place_lat, place_lon, place_tz, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    partner.id,
+    partner.userId,
+    partner.name,
+    partner.birthDate,
+    partner.birthTime,
+    partner.place?.name ?? null,
+    partner.place?.label ?? null,
+    partner.place?.lat ?? null,
+    partner.place?.lon ?? null,
+    partner.place?.tz ?? null,
+    partner.createdAt
+  );
+};
+
+export const getPartner = (id: string) => toPartner(db.prepare('SELECT * FROM partners WHERE id = ?').get(id));
+
+export const listPartners = (userId: number) =>
+  db
+    .prepare('SELECT * FROM partners WHERE user_id = ? ORDER BY created_at DESC')
+    .all(userId)
+    .map(toPartner)
+    .filter((partner) => partner !== null);
+
+export const deletePartner = (userId: number, id: string) => {
+  db.prepare('DELETE FROM partners WHERE id = ? AND user_id = ?').run(id, userId);
+  db.prepare("DELETE FROM readings WHERE user_id = ? AND kind = 'compat' AND key LIKE ?").run(userId, `${id}:%`);
 };
 
 export const getReading = (userId: number, kind: ReadingKind, key: string) => {
@@ -176,6 +383,12 @@ export const saveReading = (userId: number, kind: ReadingKind, key: string, text
   ).run(userId, kind, key, text, now());
 };
 
+export const listReadings = (userId: number, limit: number) =>
+  db
+    .prepare("SELECT kind, key, text, created_at FROM readings WHERE user_id = ? AND kind != 'natalPart' ORDER BY created_at DESC LIMIT ?")
+    .all(userId, limit)
+    .map((row) => readingRow.parse(row));
+
 export const isDayOpened = (userId: number, day: string) =>
   db.prepare('SELECT 1 AS n FROM day_cards WHERE user_id = ? AND day = ?').get(userId, day) !== undefined;
 
@@ -183,15 +396,40 @@ export const openDay = (userId: number, day: string) => {
   db.prepare('INSERT OR IGNORE INTO day_cards (user_id, day, opened_at) VALUES (?, ?, ?)').run(userId, day, now());
 };
 
-export const usersToNotify = (day: string) =>
-  db
-    .prepare('SELECT * FROM users WHERE notify = 1 AND birth_date IS NOT NULL AND (last_notified_day IS NULL OR last_notified_day <> ?)')
+export type Slot = 'morning' | 'evening';
+
+export const usersToNotify = (slot: Slot, day: string) => {
+  const flag = slot === 'morning' ? 'notify_morning' : 'notify_evening';
+  const last = slot === 'morning' ? 'last_morning_day' : 'last_evening_day';
+  return db
+    .prepare(`SELECT * FROM users WHERE ${flag} = 1 AND (${last} IS NULL OR ${last} <> ?)`)
     .all(day)
     .map(toUser)
     .filter((user) => user !== null);
-
-export const markNotified = (id: number, day: string) => {
-  db.prepare('UPDATE users SET last_notified_day = ? WHERE id = ?').run(day, id);
 };
+
+export const markNotified = (id: number, slot: Slot, day: string) => {
+  const last = slot === 'morning' ? 'last_morning_day' : 'last_evening_day';
+  db.prepare(`UPDATE users SET ${last} = ? WHERE id = ?`).run(day, id);
+};
+
+export const disableNotifications = (id: number) => {
+  db.prepare('UPDATE users SET notify_morning = 0, notify_evening = 0 WHERE id = ?').run(id);
+};
+
+export const getBroadcast = (day: string, slot: Slot) => {
+  const row = db.prepare('SELECT text FROM broadcasts WHERE day = ? AND slot = ?').get(day, slot);
+  return row === undefined ? null : textRow.parse(row).text;
+};
+
+export const saveBroadcast = (day: string, slot: Slot, text: string) => {
+  db.prepare('INSERT OR REPLACE INTO broadcasts (day, slot, text) VALUES (?, ?, ?)').run(day, slot, text);
+};
+
+export const recentBroadcasts = (slot: Slot, limit: number) =>
+  db
+    .prepare('SELECT text FROM broadcasts WHERE slot = ? ORDER BY day DESC LIMIT ?')
+    .all(slot, limit)
+    .map((row) => textRow.parse(row).text);
 
 export const closeDb = () => db.close();

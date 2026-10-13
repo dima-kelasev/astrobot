@@ -1,0 +1,149 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 16px;
+  min-width: 0;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+}
+
+.tile:hover {
+  border-color: var(--lilac);
+}
+
+.tile:active {
+  transform: scale(0.985);
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  grid-column: 1 / -1;
+  padding: 20px;
+  border-color: color-mix(in srgb, var(--lilac) 50%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--violet) 40%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+}
+
+.heroBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.heroNatal {
+  min-height: 190px;
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background:
+    radial-gradient(circle at 88% 30%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--violet) 55%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+}
+
+.heroNatal .heroBody {
+  padding-right: 96px;
+}
+
+.wheel {
+  position: absolute;
+  right: -34px;
+  top: 50%;
+  width: 150px;
+  height: 150px;
+  transform: translateY(-50%);
+  opacity: 0.85;
+  animation: spin 120s linear infinite;
+}
+
+.wheelRing {
+  fill: none;
+  stroke: color-mix(in srgb, var(--gold) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.wheelSoft {
+  fill: color-mix(in srgb, var(--gold) 8%, transparent);
+  stroke: color-mix(in srgb, var(--gold) 35%, transparent);
+  stroke-width: 0.6;
+}
+
+.wheelGlyph {
+  font-size: 8px;
+  fill: var(--gold);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.wheelLines {
+  fill: none;
+  stroke: var(--lilac);
+  stroke-width: 0.7;
+  opacity: 0.8;
+}
+
+@keyframes spin {
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.heroTitle {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.heroAction {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.tileTitle {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.tileDesc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.birthBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--gold) 60%, var(--line));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wheel {
+    animation: none;
+  }
+
+  .tile {
+    transition: none;
+  }
+}

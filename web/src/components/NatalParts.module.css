@@ -1,0 +1,277 @@
+.card {
+  scroll-margin-top: 76px;
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  transition:
+    border-color 0.25s,
+    background 0.25s,
+    box-shadow 0.25s;
+}
+
+.cardOpen {
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--violet) 22%, var(--surface)), color-mix(in srgb, var(--surface) 92%, transparent) 55%);
+  box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--violet-hi) 80%, transparent);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 18px;
+}
+
+.badge {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--gold);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 70%);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+}
+
+.badgeText {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.badgeNumber {
+  font-size: 15px;
+}
+
+.badgeAccent {
+  color: var(--lilac);
+  border-color: color-mix(in srgb, var(--lilac) 50%, transparent);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--lilac) 22%, transparent), transparent 70%);
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.chevron {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  transition: transform 0.3s;
+}
+
+.cardOpen .chevron {
+  transform: rotate(180deg);
+  color: var(--gold);
+}
+
+.body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s ease;
+}
+
+.cardOpen .body {
+  grid-template-rows: 1fr;
+}
+
+.inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 14px 16px;
+}
+
+.lead {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.lead b {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-hi) 55%, transparent);
+  text-align: left;
+  min-width: 0;
+}
+
+.facts > .fact:only-child {
+  grid-column: 1 / -1;
+}
+
+.factLink {
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.factLink:hover {
+  border-color: var(--lilac);
+}
+
+.factLabel {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.factValue {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.factText {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+
+.tagLink {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--lilac) 45%, var(--line));
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.tagLink:hover {
+  border-color: var(--lilac);
+  background: color-mix(in srgb, var(--lilac) 12%, transparent);
+}
+
+.aspects {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aspect {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.toneDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 0.45em;
+  border-radius: 50%;
+}
+
+.soft {
+  background: #7fb8ff;
+  box-shadow: 0 0 8px #7fb8ff;
+}
+
+.hard {
+  background: #ff7a8a;
+  box-shadow: 0 0 8px #ff7a8a;
+}
+
+.mixed {
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
+}
+
+.aspectText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.orb {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.aspectNature {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .chevron,
+  .body {
+    transition: none;
+  }
+}

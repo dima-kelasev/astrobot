@@ -1,8 +1,7 @@
-import { createSlice } from '@reduxjs/toolkit';
-import { api, codeOf } from '../api/client';
-import type { Me } from '../api/schemas';
+import { createSlice, type PayloadAction, type UnknownAction } from '@reduxjs/toolkit';
+import { api, codeOf, type MePatch } from '../api/client';
+import type { Limits, Me } from '../api/schemas';
 import { createAppAsyncThunk } from './hooks';
-import { startSpread } from './spreadSlice';
 
 type ProfileState = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -10,9 +9,10 @@ type ProfileState = {
   me: Me | null;
   saving: boolean;
   saveError: string | null;
+  deleting: boolean;
 };
 
-const initialState: ProfileState = { status: 'idle', errorCode: null, me: null, saving: false, saveError: null };
+const initialState: ProfileState = { status: 'idle', errorCode: null, me: null, saving: false, saveError: null, deleting: false };
 
 export const fetchMe = createAppAsyncThunk('profile/fetchMe', async (_: void, { signal, rejectWithValue }) => {
   try {
@@ -22,7 +22,7 @@ export const fetchMe = createAppAsyncThunk('profile/fetchMe', async (_: void, { 
   }
 });
 
-export const updateMe = createAppAsyncThunk('profile/updateMe', async (patch: { birthDate?: string; notify?: boolean }, { rejectWithValue }) => {
+export const updateMe = createAppAsyncThunk('profile/updateMe', async (patch: MePatch, { rejectWithValue }) => {
   try {
     return await api.updateMe(patch);
   } catch (error) {
@@ -30,10 +30,26 @@ export const updateMe = createAppAsyncThunk('profile/updateMe', async (patch: { 
   }
 });
 
+export const deleteMe = createAppAsyncThunk('profile/deleteMe', async (_: void, { dispatch, rejectWithValue }) => {
+  try {
+    await api.deleteMe();
+  } catch (error) {
+    return rejectWithValue(codeOf(error));
+  }
+  await dispatch(fetchMe());
+});
+
+export const birthChanged = (action: UnknownAction) =>
+  (updateMe.fulfilled.match(action) && action.meta.arg.birth !== undefined) || deleteMe.fulfilled.match(action);
+
 const profileSlice = createSlice({
   name: 'profile',
   initialState,
-  reducers: {},
+  reducers: {
+    limitsChanged: (state, action: PayloadAction<Limits>) => {
+      if (state.me) state.me.limits = action.payload;
+    }
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchMe.pending, (state) => {
@@ -56,7 +72,9 @@ const profileSlice = createSlice({
       .addCase(updateMe.pending, (state, action) => {
         state.saving = true;
         state.saveError = null;
-        if (state.me && action.meta.arg.notify !== undefined) state.me.notify = action.meta.arg.notify;
+        const { notifyMorning, notifyEvening } = action.meta.arg;
+        if (state.me && notifyMorning !== undefined) state.me.notifyMorning = notifyMorning;
+        if (state.me && notifyEvening !== undefined) state.me.notifyEvening = notifyEvening;
       })
       .addCase(updateMe.fulfilled, (state, action) => {
         state.saving = false;
@@ -65,12 +83,22 @@ const profileSlice = createSlice({
       .addCase(updateMe.rejected, (state, action) => {
         state.saving = false;
         state.saveError = action.payload ?? 'unknown';
-        if (state.me && action.meta.arg.notify !== undefined) state.me.notify = !action.meta.arg.notify;
+        const { notifyMorning, notifyEvening } = action.meta.arg;
+        if (state.me && notifyMorning !== undefined) state.me.notifyMorning = !notifyMorning;
+        if (state.me && notifyEvening !== undefined) state.me.notifyEvening = !notifyEvening;
       })
-      .addCase(startSpread.fulfilled, (state, action) => {
-        if (state.me) state.me.quota = action.payload.quota;
+      .addCase(deleteMe.pending, (state) => {
+        state.deleting = true;
+      })
+      .addCase(deleteMe.fulfilled, (state) => {
+        state.deleting = false;
+      })
+      .addCase(deleteMe.rejected, (state, action) => {
+        state.deleting = false;
+        state.saveError = action.payload ?? 'unknown';
       });
   }
 });
 
+export const { limitsChanged } = profileSlice.actions;
 export const profileReducer = profileSlice.reducer;

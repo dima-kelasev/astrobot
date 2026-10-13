@@ -1,0 +1,144 @@
+.wheel {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  margin-inline: auto;
+  overflow: visible;
+}
+
+.ring {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.2;
+}
+
+.ringSoft {
+  fill: none;
+  stroke: color-mix(in srgb, var(--line) 70%, transparent);
+  stroke-width: 0.8;
+}
+
+.tick {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.sign {
+  font-size: 15px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.fire {
+  fill: #ff9a76;
+}
+
+.earth {
+  fill: #b9d98a;
+}
+
+.air {
+  fill: #f3e08a;
+}
+
+.water {
+  fill: #8ab8ff;
+}
+
+.cusp {
+  stroke: color-mix(in srgb, var(--muted) 45%, transparent);
+  stroke-width: 0.7;
+}
+
+.axis {
+  stroke: var(--gold);
+  stroke-width: 1.1;
+}
+
+.house {
+  font-size: 8px;
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.hard {
+  stroke: #ff7a8a;
+  stroke-width: 0.8;
+  opacity: 0.75;
+}
+
+.soft {
+  stroke: #7fb8ff;
+  stroke-width: 0.8;
+  opacity: 0.75;
+}
+
+.dot {
+  fill: var(--lilac);
+}
+
+.planet {
+  font-size: 15px;
+  fill: var(--ink);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.angle {
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--gold);
+  letter-spacing: 0.05em;
+}
+
+.hit {
+  cursor: pointer;
+  outline: none;
+}
+
+.halo {
+  fill: transparent;
+  stroke: transparent;
+  transition:
+    fill 0.2s,
+    stroke 0.2s;
+}
+
+.hit:hover .halo,
+.hit:focus-visible .halo {
+  fill: color-mix(in srgb, var(--lilac) 18%, transparent);
+}
+
+.haloOn,
+.hit:hover .haloOn {
+  fill: color-mix(in srgb, var(--gold) 22%, transparent);
+  stroke: var(--gold);
+  stroke-width: 0.8;
+}
+
+.planetOn {
+  fill: var(--gold);
+}
+
+.houseOn {
+  fill: var(--gold);
+  font-weight: 700;
+}
+
+.dim {
+  opacity: 0.12;
+}
+
+.hard,
+.soft {
+  transition: opacity 0.25s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .halo,
+  .hard,
+  .soft {
+    transition: none;
+  }
+}

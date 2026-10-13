@@ -1,9 +1,9 @@
 import { createAction, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { codeOf, streamReading } from '../api/client';
 import { createAppAsyncThunk } from './hooks';
-import { updateMe } from './profileSlice';
+import { birthChanged } from './profileSlice';
 
-export type ReadingKind = 'sky' | 'day' | 'spread';
+export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question';
 
 export type ReadingState = {
   key: string | null;
@@ -17,7 +17,7 @@ type ReadingsState = Record<ReadingKind, ReadingState>;
 
 const empty: ReadingState = { key: null, status: 'idle', text: '', source: null, note: null };
 
-const initialState: ReadingsState = { sky: empty, day: empty, spread: empty };
+const initialState: ReadingsState = { sky: empty, day: empty, spread: empty, natal: empty, natalPart: empty, asc: empty, why: empty, compat: empty, question: empty };
 
 const readingChunk = createAction<{ kind: ReadingKind; key: string; delta: string }>('readings/chunk');
 
@@ -68,11 +68,7 @@ const readingsSlice = createSlice({
         state[kind].status = 'error';
         state[kind].note = action.payload ?? 'unknown';
       })
-      .addCase(updateMe.fulfilled, (state, action) => {
-        if (action.meta.arg.birthDate === undefined) return;
-        state.sky = empty;
-        state.day = empty;
-      });
+      .addMatcher(birthChanged, () => initialState);
   }
 });
 

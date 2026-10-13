@@ -1,9 +1,23 @@
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { go } from '../store/navSlice';
+import { back, go, isTab } from '../store/navSlice';
 import { telegram } from '../telegram';
 import styles from './TopBar.module.css';
 
-const SUB_TITLES: Record<string, string> = { tarot: 'Расклад Таро', day: 'Карта дня' };
+const SUB_TITLES: Record<string, string> = {
+  ask: 'Свой вопрос',
+  day: 'Карта дня',
+  topics: 'Расклады',
+  tarot: 'Расклад Таро',
+  question: 'Ваш вопрос',
+  natal: 'Натальная карта',
+  asc: 'Асцендент',
+  why: 'Почему сейчас так?',
+  compat: 'Совместимость',
+  partner: 'Совместимость',
+  historyItem: 'История',
+  birth: 'Данные рождения',
+  plan: 'Подписка'
+};
 
 export const TopBar = () => {
   const dispatch = useAppDispatch();
@@ -12,8 +26,8 @@ export const TopBar = () => {
   const subTitle = SUB_TITLES[screen];
   return (
     <header className={styles.top}>
-      {subTitle && !telegram.inTelegram && (
-        <button className={styles.back} type="button" aria-label="Назад в меню" onClick={() => dispatch(go('menu'))}>
+      {!isTab(screen) && !telegram.inTelegram && (
+        <button className={styles.back} type="button" aria-label="Назад" onClick={() => dispatch(back())}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M14.5 5 8 12l6.5 7" />
           </svg>

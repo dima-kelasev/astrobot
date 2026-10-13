@@ -2,7 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import { api, codeOf } from '../api/client';
 import type { Sky } from '../api/schemas';
 import { createAppAsyncThunk } from './hooks';
-import { updateMe } from './profileSlice';
+import { birthChanged } from './profileSlice';
 
 type SkyState = { status: 'idle' | 'loading' | 'ready' | 'error'; data: Sky | null; errorCode: string | null };
 
@@ -38,7 +38,7 @@ const skySlice = createSlice({
         state.status = 'error';
         state.errorCode = action.payload ?? 'unknown';
       })
-      .addCase(updateMe.fulfilled, (state, action) => (action.meta.arg.birthDate === undefined ? state : initialState));
+      .addMatcher(birthChanged, () => initialState);
   }
 });
 

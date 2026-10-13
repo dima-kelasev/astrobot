@@ -127,7 +127,7 @@ const Home = () => (
     <footer className={styles.footer}>
       <p>{DISCLAIMER}</p>
       <p>
-        © {YEAR} {SITE_NAME}
+        © {YEAR} {SITE_NAME} · <a href="/privacy/">Политика обработки персональных данных</a>
       </p>
     </footer>
 
