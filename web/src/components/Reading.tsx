@@ -5,15 +5,12 @@ import type { ReadingKind } from '../store/readingsSlice';
 import ui from '../styles/ui.module.css';
 import styles from './Reading.module.css';
 
+const BRIEF = 'Сейчас не получается подготовить подробное толкование, поэтому показан краткий вариант. Загляните чуть позже.';
+
 const NOTES: Record<string, string> = {
-  no_key: 'Нейросеть на сервере не подключена. Показан базовый текст.',
-  bad_key: 'Сервис нейросети не принял ключ. Показан базовый текст.',
-  no_funds: 'На счёте сервиса нейросети закончились средства. Показан базовый текст.',
-  bad_model: 'Сервис нейросети не знает такую модель. Показан базовый текст.',
-  empty_answer: 'Нейросеть вернула пустой ответ. Показан базовый текст.',
-  rate_limited: 'Слишком много запросов за час. Показан базовый текст.',
-  interrupted: 'Ответ оборвался. Попробуйте открыть экран ещё раз.',
-  network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  rate_limited: 'Вы сегодня спрашивали много раз подряд. Пока показан краткий вариант, подробное толкование снова будет доступно через час.',
+  interrupted: 'Связь прервалась на середине. Откройте экран ещё раз, чтобы дочитать.',
+  network: 'Нет связи. Проверьте интернет и попробуйте ещё раз.',
   unauthorized: 'Сессия устарела. Закройте мини-апп и откройте его заново из бота.'
 };
 
@@ -45,7 +42,7 @@ const renderText = (text: string) =>
     );
   });
 
-const noteText = (code: string | null) => (code ? (NOTES[code] ?? 'Нейросеть не ответила. Показан базовый текст.') : null);
+const noteText = (code: string | null) => (code ? (NOTES[code] ?? BRIEF) : null);
 
 type Props = { kind: ReadingKind; action?: ReactNode };
 
@@ -54,14 +51,14 @@ export const Reading = ({ kind, action }: Props) => {
   if (reading.status === 'idle') return null;
   const waiting = reading.status === 'loading';
   const label = waiting
-    ? 'Нейросеть думает'
+    ? 'Смотрю на звёзды'
     : reading.status === 'streaming'
-      ? 'Нейросеть пишет'
+      ? 'Пишу толкование'
       : reading.status === 'error'
         ? 'Не получилось'
         : reading.source === 'template'
-          ? 'Базовый текст по шаблону'
-          : 'Написано нейросетью';
+          ? 'Краткое толкование'
+          : 'Ваше толкование';
   const note = noteText(reading.note);
   return (
     <div className={cx(ui.glass, styles.reading)} aria-live="polite">
