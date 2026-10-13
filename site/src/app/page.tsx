@@ -1,5 +1,6 @@
 import { BotLink } from '../components/BotLink';
 import { HeroCards } from '../components/HeroCards';
+import { Meteors } from '../components/Meteors';
 import { Stars } from '../components/Stars';
 import { BOT_USERNAME, SITE_NAME, SITE_URL, botAppLink } from '../config';
 import { DISCLAIMER, FAQ, FEATURES, FINAL, HERO, META, METHOD, STEPS } from '../content';
@@ -26,6 +27,7 @@ const Home = () => (
   <div className={styles.page}>
     <div className={styles.sky}>
       <Stars />
+      <Meteors />
     </div>
 
     <header className={styles.header}>
