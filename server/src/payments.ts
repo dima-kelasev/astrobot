@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { env, paymentReturnUrl, yookassaReady } from './env.js';
 
 export const PRODUCTS = {
-  month: { title: 'Подписка на 30 дней', short: 'Месяц', price: 299, days: 30, kind: 'sub' },
+  month: { title: 'Подписка на 30 дней', short: 'Месяц', price: 350, days: 30, kind: 'sub' },
   quarter: { title: 'Подписка на 90 дней', short: '3 месяца', price: 690, days: 90, kind: 'sub' },
   year: { title: 'Подписка на 365 дней', short: 'Год', price: 1990, days: 365, kind: 'sub' },
   natal: { title: 'Натальная карта целиком', short: 'Натальная карта', price: 199, days: null, kind: 'natal' },
@@ -84,7 +84,7 @@ export const createRemotePayment = async (input: { userId: number; product: Prod
       amount: money(product.price),
       capture: true,
       confirmation: { type: 'redirect', return_url: paymentReturnUrl },
-      description: input.description.slice(0, 128),
+      description: `Астробот: ${input.description}`.slice(0, 128),
       metadata: { userId: String(input.userId), product: input.product, ref: input.ref },
       ...(methodData ? { payment_method_data: methodData } : {}),
       ...(env.YOOKASSA_RECEIPTS
@@ -93,7 +93,7 @@ export const createRemotePayment = async (input: { userId: number; product: Prod
               customer: { email: input.email },
               items: [
                 {
-                  description: product.title.slice(0, 128),
+                  description: `Астробот: ${product.title}`.slice(0, 128),
                   quantity: '1.00',
                   amount: money(product.price),
                   vat_code: env.YOOKASSA_VAT_CODE,
