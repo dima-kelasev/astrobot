@@ -143,7 +143,7 @@ const authUser = (request: FastifyRequest): User => {
   if (!id) throw new HttpError(401, 'unauthorized');
   const firstName = tg?.firstName ?? 'Разработчик';
   const existing = getUser(id);
-  return existing && existing.firstName === firstName ? existing : upsertUser(id, firstName);
+  return existing && existing.firstName === firstName ? existing : upsertUser(id, firstName, tg?.username ?? null);
 };
 
 const FEATURES = ['spread', 'question', 'partner'] as const;
@@ -377,7 +377,7 @@ const sendReading = async (reply: FastifyReply, job: ReadingJob) => {
   }
 };
 
-export type PaidEvent = { userId: number; product: ProductKey; title: string; until: string | null };
+export type PaidEvent = { paymentId: string; userId: number; product: ProductKey; title: string; amount: number; until: string | null };
 
 let paidListener: (event: PaidEvent) => void = () => {};
 
@@ -398,7 +398,16 @@ const settlePayment = async (id: string) => {
     if (!key) return local;
     const product = PRODUCTS[key];
     const applied = completePayment(id, { kind: product.kind, ref: local.ref, days: product.days });
-    if (applied) paidListener({ userId: local.userId, product: key, title: product.title, until: product.days ? subscriptionUntil(local.userId) : null });
+    if (applied) {
+      paidListener({
+        paymentId: id,
+        userId: local.userId,
+        product: key,
+        title: product.title,
+        amount: local.amount,
+        until: product.days ? subscriptionUntil(local.userId) : null
+      });
+    }
   }
   return getPayment(id);
 };

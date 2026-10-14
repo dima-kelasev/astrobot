@@ -134,7 +134,8 @@ addColumns('users', [
   ['notify_evening', 'INTEGER NOT NULL DEFAULT 1'],
   ['last_morning_day', 'TEXT'],
   ['last_evening_day', 'TEXT'],
-  ['email', 'TEXT']
+  ['email', 'TEXT'],
+  ['username', 'TEXT']
 ]);
 addColumns('spreads', [
   ['theme', "TEXT NOT NULL DEFAULT 'general'"],
@@ -303,11 +304,11 @@ const now = () => new Date().toISOString();
 
 export const getUser = (id: number) => toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(id));
 
-export const upsertUser = (id: number, firstName: string): User => {
+export const upsertUser = (id: number, firstName: string, username: string | null = null): User => {
   db.prepare(
-    `INSERT INTO users (id, first_name, created_at) VALUES (?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET first_name = excluded.first_name`
-  ).run(id, firstName, now());
+    `INSERT INTO users (id, first_name, username, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET first_name = excluded.first_name, username = COALESCE(excluded.username, users.username)`
+  ).run(id, firstName, username, now());
   const user = getUser(id);
   if (!user) throw new Error('user_not_saved');
   return user;
@@ -614,5 +615,96 @@ export const recentBroadcasts = (slot: Slot, limit: number) =>
     .prepare('SELECT text FROM broadcasts WHERE slot = ? ORDER BY day DESC LIMIT ?')
     .all(slot, limit)
     .map((row) => textRow.parse(row).text);
+
+const sumRow = z.object({ n: z.number(), sum: z.number().nullable() });
+
+const countOf = (sql: string, ...params: (string | number)[]) => countRow.parse(db.prepare(sql).get(...params)).n;
+
+export type SalesSum = { count: number; sum: number };
+
+const salesSince = (sinceIso: string): SalesSum => {
+  const row = sumRow.parse(db.prepare("SELECT COUNT(*) AS n, SUM(amount) AS sum FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(sinceIso));
+  return { count: row.n, sum: row.sum ?? 0 };
+};
+
+export type AdminStats = {
+  users: number;
+  newToday: number;
+  newWeek: number;
+  newMonth: number;
+  activeToday: number;
+  activeWeek: number;
+  withBirth: number;
+  notified: number;
+  subscribers: number;
+  salesToday: SalesSum;
+  salesWeek: SalesSum;
+  salesMonth: SalesSum;
+  salesAll: SalesSum;
+};
+
+const ACTIVE_SQL = `SELECT COUNT(DISTINCT user_id) AS n FROM (
+  SELECT user_id FROM usage WHERE day >= ?
+  UNION ALL SELECT user_id FROM readings WHERE created_at >= ?
+  UNION ALL SELECT user_id FROM day_cards WHERE opened_at >= ?
+  UNION ALL SELECT user_id FROM questions WHERE created_at >= ?
+  UNION ALL SELECT user_id FROM spreads WHERE created_at >= ?
+  UNION ALL SELECT user_id FROM payments WHERE created_at >= ?
+)`;
+
+const activeSince = (day: string, iso: string) => countOf(ACTIVE_SQL, day, iso, iso, iso, iso, iso);
+
+export const adminStats = (since: { today: string; todayIso: string; weekDay: string; weekIso: string; monthIso: string }): AdminStats => ({
+  users: countOf('SELECT COUNT(*) AS n FROM users'),
+  newToday: countOf('SELECT COUNT(*) AS n FROM users WHERE created_at >= ?', since.todayIso),
+  newWeek: countOf('SELECT COUNT(*) AS n FROM users WHERE created_at >= ?', since.weekIso),
+  newMonth: countOf('SELECT COUNT(*) AS n FROM users WHERE created_at >= ?', since.monthIso),
+  activeToday: activeSince(since.today, since.todayIso),
+  activeWeek: activeSince(since.weekDay, since.weekIso),
+  withBirth: countOf('SELECT COUNT(*) AS n FROM users WHERE birth_date IS NOT NULL'),
+  notified: countOf('SELECT COUNT(*) AS n FROM users WHERE consent_at IS NOT NULL AND (notify_morning = 1 OR notify_evening = 1)'),
+  subscribers: countOf("SELECT COUNT(DISTINCT user_id) AS n FROM grants WHERE kind = 'sub' AND until > ?", now()),
+  salesToday: salesSince(since.todayIso),
+  salesWeek: salesSince(since.weekIso),
+  salesMonth: salesSince(since.monthIso),
+  salesAll: salesSince('')
+});
+
+const saleRow = z.object({
+  id: z.string(),
+  user_id: z.number(),
+  product: z.string(),
+  amount: z.number(),
+  paid_at: z.string(),
+  first_name: z.string().nullable(),
+  username: z.string().nullable()
+});
+
+export type Sale = { id: string; userId: number; product: string; amount: number; paidAt: string; firstName: string; username: string | null };
+
+export const recentSales = (limit: number): Sale[] =>
+  db
+    .prepare(
+      `SELECT p.id, p.user_id, p.product, p.amount, p.paid_at, u.first_name, u.username
+       FROM payments p LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.status = 'succeeded' ORDER BY p.paid_at DESC LIMIT ?`
+    )
+    .all(limit)
+    .map((row) => {
+      const r = saleRow.parse(row);
+      return { id: r.id, userId: r.user_id, product: r.product, amount: r.amount, paidAt: r.paid_at, firstName: r.first_name ?? '', username: r.username };
+    });
+
+export const buyerOf = (userId: number) => {
+  const user = db.prepare('SELECT first_name, username FROM users WHERE id = ?').get(userId);
+  const parsed = z.object({ first_name: z.string(), username: z.string().nullable() }).safeParse(user);
+  const totals = sumRow.parse(db.prepare("SELECT COUNT(*) AS n, SUM(amount) AS sum FROM payments WHERE status = 'succeeded' AND user_id = ?").get(userId));
+  return {
+    firstName: parsed.success ? parsed.data.first_name : '',
+    username: parsed.success ? parsed.data.username : null,
+    purchases: totals.n,
+    spent: totals.sum ?? 0
+  };
+};
 
 export const closeDb = () => db.close();

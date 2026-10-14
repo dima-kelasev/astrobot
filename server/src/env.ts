@@ -42,6 +42,7 @@ const schema = z.object({
   FREE_QUESTIONS: z.coerce.number().int().min(0).default(1),
   FREE_SPREADS: z.coerce.number().int().min(0).default(1),
   FREE_PARTNERS: z.coerce.number().int().min(0).default(1),
+  ADMIN_IDS: z.string().default(''),
   DEV_USER_ID: z.coerce.number().int().positive().optional()
 });
 
@@ -64,6 +65,10 @@ const originOf = (url: string) => {
 
 export const siteOrigin = env.SITE_URL.replace(/\/+$/, '') || originOf(env.WEBAPP_URL);
 export const privacyUrl = siteOrigin ? `${siteOrigin}/privacy/` : '';
+
+export const adminIds = env.ADMIN_IDS.split(/[\s,]+/)
+  .map(Number)
+  .filter((id) => Number.isInteger(id) && id > 0);
 
 export const yookassaReady = Boolean(env.YOOKASSA_SHOP_ID && env.YOOKASSA_SECRET_KEY);
 

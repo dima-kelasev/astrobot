@@ -1,6 +1,6 @@
-import { createBot, runBot, sendNotification, sendPaid, sendPersonal } from './bot.js';
+import { createBot, runBot, sendAdminPaid, sendNotification, sendPaid, sendPersonal } from './bot.js';
 import { closeDb } from './db.js';
-import { env, fastModel, llmReady, yookassaReady } from './env.js';
+import { adminIds, env, fastModel, llmReady, yookassaReady } from './env.js';
 import { createApp, onPaid, startPaymentSweeper } from './http.js';
 import { startNotifier, startPersonal } from './notifier.js';
 
@@ -15,6 +15,7 @@ console.log(
     : 'Нейросеть не настроена: показывается текст по шаблону.'
 );
 console.log(paymentsOn ? 'Оплата: ЮKassa подключена.' : 'Оплата выключена: всё открыто, работают только дневные лимиты.');
+console.log(adminIds.length ? `Админы: ${adminIds.join(', ')}.` : 'ADMIN_IDS не задан: уведомления об оплатах и /stats выключены.');
 if (env.DEV_USER_ID) console.warn(`Режим разработки: вход без Telegram под пользователем ${env.DEV_USER_ID}. На боевом сервере уберите DEV_USER_ID.`);
 
 const stopSweeper = startPaymentSweeper();
@@ -26,7 +27,10 @@ if (env.BOT_TOKEN) {
   const bot = createBot();
   stopBot = runBot(bot);
   stopNotifier = startNotifier((user, slot, text) => sendNotification(bot, user, slot, text));
-  onPaid((event) => void sendPaid(bot, event));
+  onPaid((event) => {
+    void sendPaid(bot, event);
+    void sendAdminPaid(bot, event);
+  });
   const stopPersonal = startPersonal((userId, text, screen) => sendPersonal(bot, userId, text, screen));
   const stopOld = stopNotifier;
   stopNotifier = () => {

@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 const MAX_AGE_SECONDS = 24 * 60 * 60;
 
-const userSchema = z.object({ id: z.number().int().positive(), first_name: z.string().optional() });
+const userSchema = z.object({ id: z.number().int().positive(), first_name: z.string().optional(), username: z.string().optional() });
 
-export type TgUser = { id: number; firstName: string };
+export type TgUser = { id: number; firstName: string; username: string | null };
 
 export const validateInitData = (raw: string, botToken: string, nowSeconds: number = Math.floor(Date.now() / 1000)): TgUser | null => {
   if (!raw || !botToken) return null;
@@ -31,5 +31,5 @@ export const validateInitData = (raw: string, botToken: string, nowSeconds: numb
   }
   const user = userSchema.safeParse(json);
   if (!user.success) return null;
-  return { id: user.data.id, firstName: user.data.first_name ?? '' };
+  return { id: user.data.id, firstName: user.data.first_name ?? '', username: user.data.username ?? null };
 };

@@ -2,8 +2,10 @@ import type { Agent } from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Markup, Telegraf, TelegramError } from 'telegraf';
-import { deleteUserData, grantRefs, subscriptionUntil, upsertUser, type Slot, type User } from './db.js';
-import { env, privacyUrl } from './env.js';
+import { adminStats, buyerOf, deleteUserData, grantRefs, recentSales, subscriptionUntil, upsertUser, type SalesSum, type Slot, type User } from './db.js';
+import { adminIds, env, privacyUrl } from './env.js';
+import { PRODUCTS, PRODUCT_KEYS } from './payments.js';
+import { dayKey, noonOf } from './time.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
@@ -57,6 +59,89 @@ export const sendPaid = async (bot: Telegraf, event: { userId: number; title: st
   }
 };
 
+const isAdmin = (id: number) => adminIds.includes(id);
+
+const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const rub = (amount: number) => `${new Intl.NumberFormat('ru-RU').format(amount)} ₽`;
+
+const dateTimeText = (iso: string) =>
+  new Intl.DateTimeFormat('ru-RU', { timeZone: env.APP_TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+
+const productTitle = (key: string) => {
+  const found = PRODUCT_KEYS.find((item) => item === key);
+  return found ? PRODUCTS[found].title : key;
+};
+
+const personLink = (userId: number, firstName: string, username: string | null) => {
+  const name = escapeHtml(firstName || 'Без имени');
+  return `<a href="tg://user?id=${userId}">${name}</a>${username ? ` @${escapeHtml(username)}` : ''}`;
+};
+
+const DAY_MS = 86400000;
+
+const statsText = () => {
+  const day = dayKey(env.APP_TZ);
+  const now = Date.now();
+  const stats = adminStats({
+    today: day,
+    todayIso: new Date(noonOf(day, env.APP_TZ).getTime() - DAY_MS / 2).toISOString(),
+    weekDay: dayKey(env.APP_TZ, new Date(now - 7 * DAY_MS)),
+    weekIso: new Date(now - 7 * DAY_MS).toISOString(),
+    monthIso: new Date(now - 30 * DAY_MS).toISOString()
+  });
+  const sales = (label: string, value: SalesSum) => `${label}: ${value.count} на ${rub(value.sum)}`;
+  return [
+    '<b>Пользователи</b>',
+    `Всего: ${stats.users}`,
+    `Новых сегодня: ${stats.newToday}, за 7 дней: ${stats.newWeek}, за 30 дней: ${stats.newMonth}`,
+    `Заходили сегодня: ${stats.activeToday}, за 7 дней: ${stats.activeWeek}`,
+    `Ввели данные рождения: ${stats.withBirth}`,
+    `Получают рассылку: ${stats.notified}`,
+    '',
+    '<b>Деньги</b>',
+    `Активных подписок: ${stats.subscribers}`,
+    sales('Сегодня', stats.salesToday),
+    sales('За 7 дней', stats.salesWeek),
+    sales('За 30 дней', stats.salesMonth),
+    sales('За всё время', stats.salesAll),
+    '',
+    'Последние покупки: /sales'
+  ].join('\n');
+};
+
+const salesText = () => {
+  const sales = recentSales(15);
+  if (!sales.length) return 'Покупок пока нет.';
+  return [
+    '<b>Последние покупки</b>',
+    ...sales.map(
+      (sale) =>
+        `${dateTimeText(sale.paidAt)} · ${rub(sale.amount)} · ${escapeHtml(productTitle(sale.product))}\n${personLink(sale.userId, sale.firstName, sale.username)}`
+    )
+  ].join('\n\n');
+};
+
+export const sendAdminPaid = async (bot: Telegraf, event: { userId: number; title: string; amount: number; until: string | null }) => {
+  if (!adminIds.length) return;
+  const buyer = buyerOf(event.userId);
+  const lines = [
+    `💰 <b>Оплата ${rub(event.amount)}</b>`,
+    escapeHtml(event.title),
+    `Покупатель: ${personLink(event.userId, buyer.firstName, buyer.username)}`,
+    `ID: <code>${event.userId}</code>`
+  ];
+  if (event.until) lines.push(`Подписка до ${dateText(event.until)}`);
+  if (buyer.purchases > 1) lines.push(`Всего покупок: ${buyer.purchases} на ${rub(buyer.spent)}`);
+  for (const adminId of adminIds) {
+    try {
+      await bot.telegram.sendMessage(adminId, lines.join('\n'), { parse_mode: 'HTML' });
+    } catch (error) {
+      console.error(`Не удалось сообщить админу ${adminId} об оплате:`, reasonOf(error));
+    }
+  }
+};
+
 const DELETE_TEXT = 'Удалить все ваши данные: дату, время и место рождения, расклады, историю и данные партнёров? Это нельзя отменить.';
 
 const proxyAgent = (): Agent | undefined => {
@@ -82,7 +167,7 @@ export const createBot = () => {
   if (agent) console.log('Бот ходит в Telegram через прокси.');
 
   bot.start(async (ctx) => {
-    upsertUser(ctx.from.id, ctx.from.first_name);
+    upsertUser(ctx.from.id, ctx.from.first_name, ctx.from.username ?? null);
     if (ctx.payload === 'paid') {
       await ctx.reply(paidStatus(ctx.from.id), hasWebApp ? openKeyboard() : undefined);
       return;
@@ -97,6 +182,20 @@ export const createBot = () => {
     const text = lines.join('\n');
     if (hasWebApp) await ctx.reply(text, openKeyboard());
     else await ctx.reply(text);
+  });
+
+  bot.command('id', async (ctx) => {
+    await ctx.reply(`Ваш ID: <code>${ctx.from.id}</code>`, { parse_mode: 'HTML' });
+  });
+
+  bot.command('stats', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(statsText(), { parse_mode: 'HTML' });
+  });
+
+  bot.command('sales', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(salesText(), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   });
 
   bot.command('delete', async (ctx) => {
@@ -124,12 +223,23 @@ export const createBot = () => {
   return bot;
 };
 
+const PUBLIC_COMMANDS = [
+  { command: 'start', description: 'Открыть Астробота' },
+  { command: 'help', description: 'Помощь' },
+  { command: 'delete', description: 'Удалить мои данные' }
+];
+
+const ADMIN_COMMANDS = [...PUBLIC_COMMANDS, { command: 'stats', description: 'Статистика' }, { command: 'sales', description: 'Последние покупки' }];
+
 const setupBot = async (bot: Telegraf) => {
-  await bot.telegram.setMyCommands([
-    { command: 'start', description: 'Открыть Астробота' },
-    { command: 'help', description: 'Помощь' },
-    { command: 'delete', description: 'Удалить мои данные' }
-  ]);
+  await bot.telegram.setMyCommands(PUBLIC_COMMANDS);
+  for (const adminId of adminIds) {
+    try {
+      await bot.telegram.setMyCommands(ADMIN_COMMANDS, { scope: { type: 'chat', chat_id: adminId } });
+    } catch (error) {
+      console.error(`Не удалось задать команды админу ${adminId}. Он должен сначала нажать /start в боте:`, reasonOf(error));
+    }
+  }
   if (hasWebApp) {
     await bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'Открыть', web_app: { url: env.WEBAPP_URL } } });
   } else {
