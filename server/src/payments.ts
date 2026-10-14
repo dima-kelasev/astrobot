@@ -12,6 +12,16 @@ export const PRODUCTS = {
 
 export type ProductKey = keyof typeof PRODUCTS;
 
+export const discounted = (price: number, percent: number) => Math.max(1, Math.round((price * (100 - percent)) / 100));
+
+export const PROMO_CODE = /^[A-Z0-9_-]{3,32}$/;
+
+export const normalizePromo = (raw: string) =>
+  raw
+    .trim()
+    .toUpperCase()
+    .replace(/^PROMO_/, '');
+
 export const PRODUCT_KEYS = ['month', 'quarter', 'year', 'natal', 'compat'] as const;
 
 export const METHODS = ['sbp', 'card', 'other'] as const;
@@ -75,13 +85,21 @@ const METHOD_DATA: Record<Method, { type: string } | null> = { sbp: { type: 'sbp
 
 const money = (rub: number) => ({ value: rub.toFixed(2), currency: 'RUB' });
 
-export const createRemotePayment = async (input: { userId: number; product: ProductKey; ref: string; email: string; method: Method; description: string }) => {
+export const createRemotePayment = async (input: {
+  userId: number;
+  product: ProductKey;
+  ref: string;
+  email: string;
+  method: Method;
+  description: string;
+  amount: number;
+}) => {
   const product = PRODUCTS[input.product];
   const methodData = METHOD_DATA[input.method];
   const payment = await call('/payments', {
     method: 'POST',
     body: {
-      amount: money(product.price),
+      amount: money(input.amount),
       capture: true,
       confirmation: { type: 'redirect', return_url: paymentReturnUrl },
       description: `Астробот: ${input.description}`.slice(0, 128),
@@ -95,7 +113,7 @@ export const createRemotePayment = async (input: { userId: number; product: Prod
                 {
                   description: `Астробот: ${product.title}`.slice(0, 128),
                   quantity: '1.00',
-                  amount: money(product.price),
+                  amount: money(input.amount),
                   vat_code: env.YOOKASSA_VAT_CODE,
                   payment_mode: 'full_payment',
                   payment_subject: 'service'

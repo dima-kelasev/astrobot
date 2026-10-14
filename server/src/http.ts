@@ -44,7 +44,8 @@ import {
 } from './db.js';
 import { env, fastModel, llmReady, privacyUrl, siteDist, webDist, yookassaReady } from './env.js';
 import { placeById, searchCities, type Place } from './geo.js';
-import { METHODS, PRODUCTS, PRODUCT_KEYS, PaymentError, createRemotePayment, fetchRemotePayment, type ProductKey } from './payments.js';
+import { METHODS, PRODUCTS, PRODUCT_KEYS, PaymentError, createRemotePayment, discounted, fetchRemotePayment, type ProductKey } from './payments.js';
+import { discountOf, usePromo } from './promo.js';
 import { LlmError, completeText, streamCompletion } from './llm.js';
 import {
   ascInfo,
@@ -112,20 +113,22 @@ const partParams = z.object({
     .max(12)
 });
 
-const LLM_CALLS_PER_HOUR = 40;
-const llmCalls = new Map<number, number[]>();
-
-const allowLlmCall = (userId: number) => {
-  const hourAgo = Date.now() - 60 * 60 * 1000;
-  const recent = (llmCalls.get(userId) ?? []).filter((time) => time > hourAgo);
-  if (recent.length >= LLM_CALLS_PER_HOUR) {
-    llmCalls.set(userId, recent);
-    return false;
-  }
-  recent.push(Date.now());
-  llmCalls.set(userId, recent);
-  return true;
+const hourlyLimiter = (perHour: number) => {
+  const calls = new Map<number, number[]>();
+  return (userId: number) => {
+    const hourAgo = Date.now() - 60 * 60 * 1000;
+    const recent = (calls.get(userId) ?? []).filter((time) => time > hourAgo);
+    if (recent.length >= perHour) {
+      calls.set(userId, recent);
+      return false;
+    }
+    recent.push(Date.now());
+    calls.set(userId, recent);
+    return true;
+  };
 };
+
+const allowLlmCall = hourlyLimiter(40);
 
 const HASHED = ['/_next/static/', '/app/assets/', '/assets/'];
 
@@ -196,7 +199,8 @@ const accessOf = (user: User) => ({
   natal: hasNatal(user),
   why: hasWhy(user),
   compat: grantRefs(user.id, 'compat'),
-  freeQuestions: paymentsOn() && !isSubscribed(user) ? freeQuestionsLeft(user) : null
+  freeQuestions: paymentsOn() && !isSubscribed(user) ? freeQuestionsLeft(user) : null,
+  discount: discountOf(user.id)
 });
 
 const birthOf = (user: User): Birth | null => (user.birthDate ? { date: user.birthDate, time: user.birthTime, place: user.place } : null);
@@ -433,6 +437,8 @@ export const startPaymentSweeper = () => {
   const timer = setInterval(() => void sweep(), SWEEP_MS);
   return () => clearInterval(timer);
 };
+
+const promoBody = z.object({ code: z.string().min(1).max(64) });
 
 const paymentBody = z.object({ product: z.enum(PRODUCT_KEYS), method: z.enum(METHODS), partnerId: z.string().max(64).optional() });
 const webhookBody = z.object({ event: z.string(), object: z.object({ id: z.string().max(64) }) });
@@ -1006,6 +1012,7 @@ export const createApp = async () => {
 
   app.get('/api/plans', async (request) => {
     const user = authUser(request);
+    const discount = discountOf(user.id);
     return {
       payments: paymentsOn(),
       email: user.email,
@@ -1014,7 +1021,8 @@ export const createApp = async () => {
         key,
         title: PRODUCTS[key].title,
         short: PRODUCTS[key].short,
-        price: PRODUCTS[key].price,
+        price: discount ? discounted(PRODUCTS[key].price, discount.percent) : PRODUCTS[key].price,
+        full: PRODUCTS[key].price,
         days: PRODUCTS[key].days
       }))
     };
@@ -1034,14 +1042,37 @@ export const createApp = async () => {
       ref = partner.id;
       description = `${product.title}: ${partner.name}`;
     }
+    const discount = discountOf(user.id);
+    const amount = discount ? discounted(product.price, discount.percent) : product.price;
     try {
-      const remote = await createRemotePayment({ userId: user.id, product: body.data.product, ref, email: user.email, method: body.data.method, description });
-      createPayment({ id: remote.id, userId: user.id, product: body.data.product, ref, amount: product.price });
+      const remote = await createRemotePayment({
+        userId: user.id,
+        product: body.data.product,
+        ref,
+        email: user.email,
+        method: body.data.method,
+        description,
+        amount
+      });
+      createPayment({ id: remote.id, userId: user.id, product: body.data.product, ref, amount, promo: discount?.code ?? null });
       return { id: remote.id, url: remote.url };
     } catch (error) {
       if (error instanceof PaymentError) throw new HttpError(502, 'payment_failed');
       throw error;
     }
+  });
+
+  app.post('/api/promo', async (request) => {
+    const user = authUser(request);
+    const body = promoBody.safeParse(request.body);
+    if (!body.success) throw new HttpError(400, 'bad_request');
+    const outcome = usePromo(user.id, body.data.code);
+    if (!outcome.ok) {
+      const status = outcome.reason === 'too_many' ? 429 : outcome.reason === 'not_found' || outcome.reason === 'bad_code' ? 404 : 409;
+      throw new HttpError(status, `promo_${outcome.reason}`);
+    }
+    const fresh = getUser(user.id) ?? user;
+    return { kind: outcome.promo.kind, value: outcome.promo.value, code: outcome.promo.code, until: outcome.until, me: meView(fresh) };
   });
 
   app.get('/api/payments/:id', async (request) => {

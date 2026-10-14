@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PromoField } from '../components/PromoField';
 import { SubStatus } from '../components/SubStatus';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -26,6 +27,11 @@ export const Profile = () => {
         <h1 className={ui.title}>{me.sign ? `${me.sign}${me.ascSign ? `, асцендент в знаке ${me.ascSign}` : ''}` : me.firstName || 'Профиль'}</h1>
       </div>
       <SubStatus />
+      {me.access.payments && (
+        <div className={cx(ui.glass, ui.field)}>
+          <PromoField />
+        </div>
+      )}
       <div className={cx(ui.glass, ui.field)}>
         <span className={ui.label}>Данные рождения</span>
         {birth ? (

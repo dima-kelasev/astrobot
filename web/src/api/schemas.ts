@@ -22,7 +22,8 @@ export const accessSchema = z.object({
   natal: z.boolean(),
   why: z.boolean(),
   compat: z.array(z.string()),
-  freeQuestions: z.number().nullable()
+  freeQuestions: z.number().nullable(),
+  discount: z.object({ code: z.string(), percent: z.number() }).nullable()
 });
 
 export const meSchema = z.object({
@@ -215,10 +216,20 @@ export const plansSchema = z.object({
   payments: z.boolean(),
   email: z.string().nullable(),
   access: accessSchema,
-  products: z.array(z.object({ key: z.enum(PRODUCT_KEYS), title: z.string(), short: z.string(), price: z.number(), days: z.number().nullable() }))
+  products: z.array(
+    z.object({ key: z.enum(PRODUCT_KEYS), title: z.string(), short: z.string(), price: z.number(), full: z.number(), days: z.number().nullable() })
+  )
 });
 
 export const paymentCreatedSchema = z.object({ id: z.string(), url: z.string() });
+
+export const promoResultSchema = z.object({
+  kind: z.enum(['discount', 'days']),
+  value: z.number(),
+  code: z.string(),
+  until: z.string().nullable(),
+  me: meSchema
+});
 
 export const paymentStatusSchema = z.object({ status: z.enum(['pending', 'succeeded', 'canceled']), me: meSchema });
 
@@ -227,6 +238,7 @@ export type Limits = z.infer<typeof limitsSchema>;
 export type Me = z.infer<typeof meSchema>;
 export type Access = z.infer<typeof accessSchema>;
 export type Plans = z.infer<typeof plansSchema>;
+export type PromoResult = z.infer<typeof promoResultSchema>;
 export type ProductKey = (typeof PRODUCT_KEYS)[number];
 export type Sky = z.infer<typeof skySchema>;
 export type Day = z.infer<typeof daySchema>;

@@ -2,9 +2,28 @@ import type { Agent } from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Markup, Telegraf, TelegramError } from 'telegraf';
-import { adminStats, buyerOf, deleteUserData, grantRefs, recentSales, subscriptionUntil, upsertUser, type SalesSum, type Slot, type User } from './db.js';
+import {
+  adminStats,
+  buyerOf,
+  createPromo,
+  deleteUserData,
+  getPayment,
+  getPromo,
+  getUser,
+  grantRefs,
+  promoStats,
+  recentSales,
+  setPromoActive,
+  subscriptionUntil,
+  upsertUser,
+  type PromoKind,
+  type SalesSum,
+  type Slot,
+  type User
+} from './db.js';
 import { adminIds, env, privacyUrl } from './env.js';
-import { PRODUCTS, PRODUCT_KEYS } from './payments.js';
+import { PRODUCTS, PRODUCT_KEYS, PROMO_CODE, normalizePromo } from './payments.js';
+import { daysWord, promoText, usePromo } from './promo.js';
 import { dayKey, noonOf } from './time.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
@@ -122,7 +141,7 @@ const salesText = () => {
   ].join('\n\n');
 };
 
-export const sendAdminPaid = async (bot: Telegraf, event: { userId: number; title: string; amount: number; until: string | null }) => {
+export const sendAdminPaid = async (bot: Telegraf, event: { paymentId: string; userId: number; title: string; amount: number; until: string | null }) => {
   if (!adminIds.length) return;
   const buyer = buyerOf(event.userId);
   const lines = [
@@ -131,6 +150,10 @@ export const sendAdminPaid = async (bot: Telegraf, event: { userId: number; titl
     `Покупатель: ${personLink(event.userId, buyer.firstName, buyer.username)}`,
     `ID: <code>${event.userId}</code>`
   ];
+  const promoCode = getPayment(event.paymentId)?.promo ?? null;
+  const promo = promoCode ? getPromo(promoCode) : null;
+  if (promo) lines.push(`Промокод: ${escapeHtml(promo.code)} (−${promo.value}%)`);
+  else if (buyer.refPromo) lines.push(`Пришёл по промокоду ${escapeHtml(buyer.refPromo)}`);
   if (event.until) lines.push(`Подписка до ${dateText(event.until)}`);
   if (buyer.purchases > 1) lines.push(`Всего покупок: ${buyer.purchases} на ${rub(buyer.spent)}`);
   for (const adminId of adminIds) {
@@ -140,6 +163,62 @@ export const sendAdminPaid = async (bot: Telegraf, event: { userId: number; titl
       console.error(`Не удалось сообщить админу ${adminId} об оплате:`, reasonOf(error));
     }
   }
+};
+
+const promoLabel = (kind: PromoKind, value: number) => (kind === 'discount' ? `скидка ${value}%` : `${value} ${daysWord(value)} подписки`);
+
+const promoLink = (username: string | undefined, code: string) => (username ? `https://t.me/${username}?start=promo_${code}` : `/start promo_${code}`);
+
+const promosText = (username: string | undefined) => {
+  const stats = promoStats();
+  const help = [
+    '<b>Как создать</b>',
+    '<code>/promo_new ANNA 20%</code> — скидка 20% на одну покупку',
+    '<code>/promo_new ANNA 30d</code> — 30 дней подписки бесплатно',
+    '<code>/promo_new ANNA 20% 100</code> — то же, но только 100 активаций',
+    '<code>/promo_off ANNA</code> и <code>/promo_on ANNA</code> — выключить и включить'
+  ].join('\n');
+  if (!stats.length) return `Промокодов пока нет.\n\n${help}`;
+  const blocks = stats.map((promo) =>
+    [
+      `<b>${escapeHtml(promo.code)}</b> — ${promoLabel(promo.kind, promo.value)}${promo.active ? '' : ' · выключен'}`,
+      `Применили: ${promo.uses}${promo.maxUses !== null ? ` из ${promo.maxUses}` : ''}${promo.kind === 'discount' ? ` · купили со скидкой: ${promo.discounted}` : ''}`,
+      `Пришли по коду и заплатили: ${promo.buyers} на ${rub(promo.revenue)}`,
+      promoLink(username, promo.code)
+    ].join('\n')
+  );
+  return [...blocks, help].join('\n\n');
+};
+
+const NEW_PROMO = /^([A-Za-z0-9_-]+)\s+(\d+)\s*(%|d|д|дн|дней)?(?:\s+(\d+))?$/i;
+
+const createPromoText = (args: string, username: string | undefined) => {
+  const match = NEW_PROMO.exec(args.trim());
+  if (!match) return 'Не понял. Пример: <code>/promo_new ANNA 20%</code> или <code>/promo_new ANNA 30d 100</code>';
+  const code = normalizePromo(match[1]);
+  const value = Number(match[2]);
+  const kind: PromoKind = match[3] && match[3] !== '%' ? 'days' : 'discount';
+  const maxUses = match[4] ? Number(match[4]) : null;
+  if (!PROMO_CODE.test(code)) return 'Код — от 3 до 32 латинских букв, цифр, _ или -.';
+  if (kind === 'discount' && (value < 1 || value > 90)) return 'Скидка может быть от 1 до 90%.';
+  if (kind === 'days' && (value < 1 || value > 365)) return 'Дней может быть от 1 до 365.';
+  if (maxUses !== null && maxUses < 1) return 'Лимит активаций должен быть больше нуля.';
+  if (!createPromo({ code, kind, value, maxUses })) return `Код ${escapeHtml(code)} уже есть. Посмотреть все: /promos`;
+  return [
+    `Готово: <b>${escapeHtml(code)}</b> — ${promoLabel(kind, value)}${maxUses !== null ? `, лимит ${maxUses}` : ''}.`,
+    '',
+    'Ссылка для блогера, по ней код применится сам:',
+    promoLink(username, code),
+    '',
+    'Ещё код можно ввести вручную в мини-аппе: в Профиле или на экране подписки.'
+  ].join('\n');
+};
+
+const togglePromoText = (raw: string, active: boolean) => {
+  const code = normalizePromo(raw);
+  if (!code) return `Укажите код: /promo_${active ? 'on' : 'off'} ANNA`;
+  if (!setPromoActive(code, active)) return `Кода ${code} нет. Список: /promos`;
+  return active ? `${code} снова работает.` : `${code} выключен. Уже выданные скидки и дни остаются у людей.`;
 };
 
 const DELETE_TEXT = 'Удалить все ваши данные: дату, время и место рождения, расклады, историю и данные партнёров? Это нельзя отменить.';
@@ -167,7 +246,16 @@ export const createBot = () => {
   if (agent) console.log('Бот ходит в Telegram через прокси.');
 
   bot.start(async (ctx) => {
+    const known = getUser(ctx.from.id) !== null;
     upsertUser(ctx.from.id, ctx.from.first_name, ctx.from.username ?? null);
+    if (ctx.payload.startsWith('promo_')) {
+      const outcome = usePromo(ctx.from.id, ctx.payload);
+      const result = promoText(outcome, dateText);
+      const text = known ? result : `${WELCOME}\n\n${result}`;
+      if (hasWebApp) await ctx.reply(text, Markup.inlineKeyboard([Markup.button.webApp('Открыть Астробота', appUrl(outcome.ok ? 'plan' : undefined))]));
+      else await ctx.reply(text);
+      return;
+    }
     if (ctx.payload === 'paid') {
       await ctx.reply(paidStatus(ctx.from.id), hasWebApp ? openKeyboard() : undefined);
       return;
@@ -196,6 +284,26 @@ export const createBot = () => {
   bot.command('sales', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
     await ctx.reply(salesText(), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+  });
+
+  bot.command('promos', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(promosText(ctx.botInfo.username), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+  });
+
+  bot.command('promo_new', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(createPromoText(ctx.payload, ctx.botInfo.username), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+  });
+
+  bot.command('promo_off', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(togglePromoText(ctx.payload, false));
+  });
+
+  bot.command('promo_on', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply(togglePromoText(ctx.payload, true));
   });
 
   bot.command('delete', async (ctx) => {
@@ -229,7 +337,13 @@ const PUBLIC_COMMANDS = [
   { command: 'delete', description: 'Удалить мои данные' }
 ];
 
-const ADMIN_COMMANDS = [...PUBLIC_COMMANDS, { command: 'stats', description: 'Статистика' }, { command: 'sales', description: 'Последние покупки' }];
+const ADMIN_COMMANDS = [
+  ...PUBLIC_COMMANDS,
+  { command: 'stats', description: 'Статистика' },
+  { command: 'sales', description: 'Последние покупки' },
+  { command: 'promos', description: 'Промокоды' },
+  { command: 'promo_new', description: 'Создать промокод' }
+];
 
 const setupBot = async (bot: Telegraf) => {
   await bot.telegram.setMyCommands(PUBLIC_COMMANDS);

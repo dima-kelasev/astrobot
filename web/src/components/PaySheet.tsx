@@ -106,6 +106,11 @@ export const PaySheet = () => {
         ) : (
           <div className={styles.body}>
             <h2 className={styles.title}>{product ? `Оплата ${product.price} ₽ ${suffix}` : 'Оплата'}</h2>
+            {product && me.access.discount && product.full !== product.price && (
+              <p className={styles.text}>
+                Вместо {product.full} ₽: скидка {me.access.discount.percent}% по промокоду {me.access.discount.code}.
+              </p>
+            )}
 
             {askEmail ? (
               <div className={styles.email}>

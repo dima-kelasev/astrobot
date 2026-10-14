@@ -17,6 +17,7 @@ import {
   paymentStatusSchema,
   pickSchema,
   plansSchema,
+  promoResultSchema,
   questionStartSchema,
   skySchema,
   spreadStartSchema,
@@ -102,6 +103,7 @@ export const api = {
   ask: (text: string) => request(questionStartSchema, '/api/questions', { method: 'POST', body: { text } }),
   plans: (signal?: AbortSignal) => request(plansSchema, '/api/plans', { signal }),
   pay: (body: { product: ProductKey; method: PayMethod; partnerId?: string }) => request(paymentCreatedSchema, '/api/payments', { method: 'POST', body }),
+  promo: (code: string) => request(promoResultSchema, '/api/promo', { method: 'POST', body: { code } }),
   paymentStatus: (id: string, signal?: AbortSignal) => request(paymentStatusSchema, `/api/payments/${encodeURIComponent(id)}`, { signal }),
   history: (signal?: AbortSignal) => request(historySchema, '/api/history', { signal }),
   historyItem: (kind: string, key: string, signal?: AbortSignal) =>

@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { api, codeOf, type PayMethod } from '../api/client';
-import type { Plans, ProductKey } from '../api/schemas';
+import type { Plans, ProductKey, PromoResult } from '../api/schemas';
 import { telegram } from '../telegram';
 import { createAppAsyncThunk } from './hooks';
 import { meLoaded } from './profileSlice';
@@ -17,13 +17,34 @@ type PaymentState = {
   paymentId: string | null;
   url: string | null;
   error: string | null;
+  promo: { status: 'idle' | 'saving' | 'done' | 'error'; result: Omit<PromoResult, 'me'> | null; error: string | null };
 };
 
-const initialState: PaymentState = { plans: null, plansStatus: 'idle', sheet: null, step: 'choose', paymentId: null, url: null, error: null };
+const initialState: PaymentState = {
+  plans: null,
+  plansStatus: 'idle',
+  sheet: null,
+  step: 'choose',
+  paymentId: null,
+  url: null,
+  error: null,
+  promo: { status: 'idle', result: null, error: null }
+};
 
 export const fetchPlans = createAppAsyncThunk('payment/plans', async (_: void, { signal, rejectWithValue }) => {
   try {
     return await api.plans(signal);
+  } catch (error) {
+    return rejectWithValue(codeOf(error));
+  }
+});
+
+export const applyPromo = createAppAsyncThunk('payment/promo', async (code: string, { dispatch, rejectWithValue }) => {
+  try {
+    const { me, ...result } = await api.promo(code);
+    dispatch(meLoaded(me));
+    void dispatch(fetchPlans());
+    return result;
   } catch (error) {
     return rejectWithValue(codeOf(error));
   }
@@ -74,6 +95,9 @@ const paymentSlice = createSlice({
     backToChoose: (state) => {
       state.step = 'choose';
       state.error = null;
+    },
+    resetPromo: (state) => {
+      state.promo = { status: 'idle', result: null, error: null };
     }
   },
   extraReducers: (builder) => {
@@ -105,6 +129,15 @@ const paymentSlice = createSlice({
         state.step = 'error';
         state.error = action.payload ?? 'unknown';
       })
+      .addCase(applyPromo.pending, (state) => {
+        state.promo = { status: 'saving', result: null, error: null };
+      })
+      .addCase(applyPromo.fulfilled, (state, action) => {
+        state.promo = { status: 'done', result: action.payload, error: null };
+      })
+      .addCase(applyPromo.rejected, (state, action) => {
+        state.promo = { status: 'error', result: null, error: action.payload ?? 'unknown' };
+      })
       .addCase(checkPayment.fulfilled, (state, action) => {
         if (action.payload === 'succeeded') state.step = 'success';
         if (action.payload === 'canceled') state.step = 'canceled';
@@ -118,5 +151,5 @@ const paymentSlice = createSlice({
   }
 });
 
-export const { openPay, closePay, backToChoose } = paymentSlice.actions;
+export const { openPay, closePay, backToChoose, resetPromo } = paymentSlice.actions;
 export const paymentReducer = paymentSlice.reducer;

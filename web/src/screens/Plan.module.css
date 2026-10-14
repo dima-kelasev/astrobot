@@ -56,6 +56,12 @@
   white-space: nowrap;
 }
 
+.old {
+  margin-right: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .desc {
   grid-column: 1 / -1;
   font-size: 13px;

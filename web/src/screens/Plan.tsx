@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { PromoField } from '../components/PromoField';
 import type { ProductKey } from '../api/schemas';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -21,6 +22,13 @@ const SUBS: { key: Extract<ProductKey, 'month' | 'quarter' | 'year'>; months: nu
 ];
 
 const dateText = (iso: string) => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
+
+const Price = ({ price, full }: { price: number; full: number }) => (
+  <span className={styles.price}>
+    {full !== price && <s className={styles.old}>{full} ₽</s>}
+    {price} ₽
+  </span>
+);
 
 export const Plan = () => {
   const dispatch = useAppDispatch();
@@ -88,7 +96,7 @@ export const Plan = () => {
                 {product.short}
                 {sub.note && <span className={styles.badge}>{sub.note}</span>}
               </span>
-              <span className={styles.price}>{product.price} ₽</span>
+              <Price price={product.price} full={product.full} />
               <span className={styles.desc}>{sub.months > 1 ? `${Math.round(product.price / sub.months)} ₽ в месяц` : 'Можно начать с месяца'}</span>
             </button>
           );
@@ -102,10 +110,14 @@ export const Plan = () => {
           onClick={() => dispatch(openPay({ product: 'natal', partnerId: null, partnerName: null }))}
         >
           <span className={styles.name}>Только натальная карта</span>
-          <span className={styles.price}>{natal.price} ₽</span>
+          <Price price={natal.price} full={natal.full} />
           <span className={styles.desc}>Все планеты, дома и советы вашей карты. Покупается один раз и остаётся навсегда.</span>
         </button>
       )}
+
+      <div className={cx(ui.glass, ui.field)}>
+        <PromoField />
+      </div>
 
       <p className={ui.hint}>
         Оплата через ЮKassa: СБП, банковская карта и другие способы. Подписка не продлевается сама, списаний без вашего ведома не будет.

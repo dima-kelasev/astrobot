@@ -102,6 +102,21 @@ db.exec(`
     sent_at TEXT NOT NULL,
     PRIMARY KEY (user_id, key)
   );
+  CREATE TABLE IF NOT EXISTS promos (
+    code TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    value INTEGER NOT NULL,
+    max_uses INTEGER,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS promo_uses (
+    code TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    payment_id TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (code, user_id)
+  );
   CREATE TABLE IF NOT EXISTS broadcasts (
     day TEXT NOT NULL,
     slot TEXT NOT NULL,
@@ -135,8 +150,10 @@ addColumns('users', [
   ['last_morning_day', 'TEXT'],
   ['last_evening_day', 'TEXT'],
   ['email', 'TEXT'],
-  ['username', 'TEXT']
+  ['username', 'TEXT'],
+  ['ref_promo', 'TEXT']
 ]);
+addColumns('payments', [['promo', 'TEXT']]);
 addColumns('spreads', [
   ['theme', "TEXT NOT NULL DEFAULT 'general'"],
   ['size', 'INTEGER NOT NULL DEFAULT 9']
@@ -362,7 +379,8 @@ const paymentRow = z.object({
   amount: z.number(),
   status: z.enum(['pending', 'succeeded', 'canceled']),
   created_at: z.string(),
-  paid_at: z.string().nullable()
+  paid_at: z.string().nullable(),
+  promo: z.string().nullable()
 });
 
 export type Payment = {
@@ -374,23 +392,35 @@ export type Payment = {
   status: PaymentStatus;
   createdAt: string;
   paidAt: string | null;
+  promo: string | null;
 };
 
 const toPayment = (row: unknown): Payment | null => {
   if (row === undefined) return null;
   const r = paymentRow.parse(row);
-  return { id: r.id, userId: r.user_id, product: r.product, ref: r.ref, amount: r.amount, status: r.status, createdAt: r.created_at, paidAt: r.paid_at };
+  return {
+    id: r.id,
+    userId: r.user_id,
+    product: r.product,
+    ref: r.ref,
+    amount: r.amount,
+    status: r.status,
+    createdAt: r.created_at,
+    paidAt: r.paid_at,
+    promo: r.promo
+  };
 };
 
-export const createPayment = (payment: { id: string; userId: number; product: string; ref: string; amount: number }) => {
-  db.prepare('INSERT INTO payments (id, user_id, product, ref, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+export const createPayment = (payment: { id: string; userId: number; product: string; ref: string; amount: number; promo: string | null }) => {
+  db.prepare('INSERT INTO payments (id, user_id, product, ref, amount, status, created_at, promo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
     payment.id,
     payment.userId,
     payment.product,
     payment.ref,
     payment.amount,
     'pending',
-    now()
+    now(),
+    payment.promo
   );
 };
 
@@ -421,6 +451,12 @@ export const grantRefs = (userId: number, kind: string) =>
     .all(userId, kind)
     .map((row) => refRow.parse(row).ref);
 
+const extendedUntil = (userId: number, days: number) => {
+  const current = subscriptionUntil(userId);
+  const start = current && current > now() ? new Date(current) : new Date();
+  return new Date(start.getTime() + days * 86400000).toISOString();
+};
+
 export const completePayment = (id: string, grant: { kind: string; ref: string; days: number | null }) => {
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -431,12 +467,7 @@ export const completePayment = (id: string, grant: { kind: string; ref: string; 
     }
     const payment = getPayment(id);
     if (!payment) throw new Error('payment_missing');
-    let until: string | null = null;
-    if (grant.days !== null) {
-      const current = subscriptionUntil(payment.userId);
-      const start = current && current > now() ? new Date(current) : new Date();
-      until = new Date(start.getTime() + grant.days * 86400000).toISOString();
-    }
+    const until = grant.days === null ? null : extendedUntil(payment.userId, grant.days);
     db.prepare('INSERT INTO grants (user_id, kind, ref, until, payment_id, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       payment.userId,
       grant.kind,
@@ -445,6 +476,8 @@ export const completePayment = (id: string, grant: { kind: string; ref: string; 
       id,
       now()
     );
+    if (payment.promo)
+      db.prepare('UPDATE promo_uses SET payment_id = ? WHERE code = ? AND user_id = ? AND payment_id IS NULL').run(id, payment.promo, payment.userId);
     db.exec('COMMIT');
     return true;
   } catch (error) {
@@ -696,15 +729,132 @@ export const recentSales = (limit: number): Sale[] =>
     });
 
 export const buyerOf = (userId: number) => {
-  const user = db.prepare('SELECT first_name, username FROM users WHERE id = ?').get(userId);
-  const parsed = z.object({ first_name: z.string(), username: z.string().nullable() }).safeParse(user);
+  const user = db.prepare('SELECT first_name, username, ref_promo FROM users WHERE id = ?').get(userId);
+  const parsed = z.object({ first_name: z.string(), username: z.string().nullable(), ref_promo: z.string().nullable() }).safeParse(user);
   const totals = sumRow.parse(db.prepare("SELECT COUNT(*) AS n, SUM(amount) AS sum FROM payments WHERE status = 'succeeded' AND user_id = ?").get(userId));
   return {
     firstName: parsed.success ? parsed.data.first_name : '',
     username: parsed.success ? parsed.data.username : null,
+    refPromo: parsed.success ? parsed.data.ref_promo : null,
     purchases: totals.n,
     spent: totals.sum ?? 0
   };
 };
+
+export type PromoKind = 'discount' | 'days';
+
+const promoRow = z.object({
+  code: z.string(),
+  kind: z.enum(['discount', 'days']),
+  value: z.number(),
+  max_uses: z.number().nullable(),
+  active: z.number(),
+  created_at: z.string()
+});
+
+export type Promo = { code: string; kind: PromoKind; value: number; maxUses: number | null; active: boolean; createdAt: string };
+
+const toPromo = (row: unknown): Promo | null => {
+  if (row === undefined) return null;
+  const r = promoRow.parse(row);
+  return { code: r.code, kind: r.kind, value: r.value, maxUses: r.max_uses, active: r.active === 1, createdAt: r.created_at };
+};
+
+export const getPromo = (code: string) => toPromo(db.prepare('SELECT * FROM promos WHERE code = ?').get(code));
+
+export const createPromo = (promo: { code: string; kind: PromoKind; value: number; maxUses: number | null }) => {
+  if (getPromo(promo.code)) return false;
+  db.prepare('INSERT INTO promos (code, kind, value, max_uses, active, created_at) VALUES (?, ?, ?, ?, 1, ?)').run(
+    promo.code,
+    promo.kind,
+    promo.value,
+    promo.maxUses,
+    now()
+  );
+  return true;
+};
+
+export const setPromoActive = (code: string, active: boolean) =>
+  Number(db.prepare('UPDATE promos SET active = ? WHERE code = ?').run(active ? 1 : 0, code).changes) > 0;
+
+const promoUses = (code: string) => countOf('SELECT COUNT(*) AS n FROM promo_uses WHERE code = ?', code);
+
+export type RedeemResult = { ok: true; promo: Promo; until: string | null } | { ok: false; reason: 'not_found' | 'used' | 'exhausted' | 'has_discount' };
+
+export const redeemPromo = (userId: number, code: string): RedeemResult => {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const promo = getPromo(code);
+    const fail = (reason: 'not_found' | 'used' | 'exhausted' | 'has_discount'): RedeemResult => {
+      db.exec('COMMIT');
+      return { ok: false, reason };
+    };
+    if (!promo || !promo.active) return fail('not_found');
+    if (db.prepare('SELECT 1 AS n FROM promo_uses WHERE code = ? AND user_id = ?').get(code, userId) !== undefined) return fail('used');
+    if (promo.maxUses !== null && promoUses(code) >= promo.maxUses) return fail('exhausted');
+    const current = pendingDiscount(userId);
+    if (promo.kind === 'discount' && current && current.percent >= promo.value) return fail('has_discount');
+    db.prepare('INSERT INTO promo_uses (code, user_id, payment_id, created_at) VALUES (?, ?, NULL, ?)').run(code, userId, now());
+    db.prepare('UPDATE users SET ref_promo = COALESCE(ref_promo, ?) WHERE id = ?').run(code, userId);
+    let until: string | null = null;
+    if (promo.kind === 'days') {
+      until = extendedUntil(userId, promo.value);
+      db.prepare('INSERT INTO grants (user_id, kind, ref, until, payment_id, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+        userId,
+        'sub',
+        '',
+        until,
+        `promo:${code}`,
+        now()
+      );
+    }
+    db.exec('COMMIT');
+    return { ok: true, promo, until };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+};
+
+const discountRow = z.object({ code: z.string(), value: z.number() });
+
+export const pendingDiscount = (userId: number) => {
+  const row = db
+    .prepare(
+      `SELECT p.code, p.value FROM promo_uses u JOIN promos p ON p.code = u.code
+       WHERE u.user_id = ? AND u.payment_id IS NULL AND p.kind = 'discount'
+       ORDER BY p.value DESC LIMIT 1`
+    )
+    .get(userId);
+  if (row === undefined) return null;
+  const r = discountRow.parse(row);
+  return { code: r.code, percent: r.value };
+};
+
+export type PromoStat = Promo & { uses: number; buyers: number; revenue: number; discounted: number };
+
+export const promoStats = (): PromoStat[] =>
+  db
+    .prepare('SELECT * FROM promos ORDER BY created_at DESC')
+    .all()
+    .map((row) => toPromo(row))
+    .filter((promo): promo is Promo => promo !== null)
+    .map((promo) => {
+      const totals = sumRow.parse(
+        db
+          .prepare(
+            `SELECT COUNT(DISTINCT p.user_id) AS n, SUM(p.amount) AS sum FROM payments p JOIN users u ON u.id = p.user_id
+             WHERE p.status = 'succeeded' AND u.ref_promo = ?`
+          )
+          .get(promo.code)
+      );
+      return {
+        ...promo,
+        uses: promoUses(promo.code),
+        buyers: totals.n,
+        revenue: totals.sum ?? 0,
+        discounted: countOf("SELECT COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND promo = ?", promo.code)
+      };
+    });
 
 export const closeDb = () => db.close();
