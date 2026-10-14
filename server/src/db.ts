@@ -389,6 +389,13 @@ export const createPayment = (payment: { id: string; userId: number; product: st
 
 export const getPayment = (id: string) => toPayment(db.prepare('SELECT * FROM payments WHERE id = ?').get(id));
 
+export const pendingPayments = (sinceIso: string) =>
+  db
+    .prepare("SELECT * FROM payments WHERE status = 'pending' AND created_at >= ? ORDER BY created_at")
+    .all(sinceIso)
+    .map((row) => toPayment(row))
+    .filter((payment): payment is Payment => payment !== null);
+
 export const markPaymentCanceled = (id: string) => {
   db.prepare("UPDATE payments SET status = 'canceled' WHERE id = ? AND status = 'pending'").run(id);
 };

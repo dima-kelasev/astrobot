@@ -26,6 +26,7 @@ import {
   listPartners,
   listReadings,
   markPaymentCanceled,
+  pendingPayments,
   openDay,
   saveReading,
   setBirth,
@@ -395,6 +396,28 @@ const settlePayment = async (id: string) => {
     if (applied) paidListener({ userId: local.userId, product: key, title: product.title, until: product.days ? subscriptionUntil(local.userId) : null });
   }
   return getPayment(id);
+};
+
+const SWEEP_MS = 60 * 1000;
+const SWEEP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export const startPaymentSweeper = () => {
+  let running = false;
+  const sweep = async () => {
+    if (running || !paymentsOn()) return;
+    running = true;
+    try {
+      for (const payment of pendingPayments(new Date(Date.now() - SWEEP_WINDOW_MS).toISOString())) {
+        await settlePayment(payment.id).catch((error: unknown) => {
+          if (!(error instanceof PaymentError)) console.error('Не удалось проверить платёж:', error);
+        });
+      }
+    } finally {
+      running = false;
+    }
+  };
+  const timer = setInterval(() => void sweep(), SWEEP_MS);
+  return () => clearInterval(timer);
 };
 
 const paymentBody = z.object({ product: z.enum(PRODUCT_KEYS), method: z.enum(METHODS), partnerId: z.string().max(64).optional() });
