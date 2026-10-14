@@ -1,35 +1,117 @@
 .plans {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .plan {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 4px 16px;
+  width: 100%;
   padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.plan:hover {
+  border-color: var(--lilac);
+}
+
+.plan:active {
+  transform: scale(0.985);
 }
 
 .name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: 15px;
+  font-size: 16px;
+}
+
+.badge {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--bg);
+  background: var(--gold);
 }
 
 .price {
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 18px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .desc {
   grid-column: 1 / -1;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
+  line-height: 1.4;
 }
 
 .best {
-  border-color: var(--lilac);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--violet) 36%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+  border-color: color-mix(in srgb, var(--gold) 60%, var(--line));
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--violet) 40%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+}
+
+.single {
+  border-style: dashed;
+}
+
+.included {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.included li {
+  position: relative;
+  padding-left: 24px;
+}
+
+.included li::before {
+  content: '✦';
+  position: absolute;
+  left: 0;
+  color: var(--gold);
+}
+
+.active {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+}
+
+.activeTitle {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan {
+    transition: none;
+  }
 }

@@ -8,33 +8,42 @@ import { validateInitData } from './auth.js';
 import { HOUSES, PLANETS, figures, type Chart } from './chart.js';
 import {
   addUsage,
+  completePayment,
   createPartner,
+  createPayment,
   createQuestion,
   createSpread,
   deletePartner,
   deleteUserData,
   getPartner,
+  getPayment,
   getQuestion,
   getReading,
   getSpread,
   getUser,
+  grantRefs,
   isDayOpened,
   listPartners,
   listReadings,
+  markPaymentCanceled,
   openDay,
   saveReading,
   setBirth,
   setConsent,
+  setEmail,
   setNotifications,
   setPicks,
+  subscriptionUntil,
+  totalUsage,
   upsertUser,
   usageOf,
   type Partner,
   type ReadingKind,
   type User
 } from './db.js';
-import { env, fastModel, llmReady, privacyUrl, siteDist, webDist } from './env.js';
+import { env, fastModel, llmReady, privacyUrl, siteDist, webDist, yookassaReady } from './env.js';
 import { placeById, searchCities, type Place } from './geo.js';
+import { METHODS, PRODUCTS, PRODUCT_KEYS, PaymentError, createRemotePayment, fetchRemotePayment, type ProductKey } from './payments.js';
 import { LlmError, completeText, streamCompletion } from './llm.js';
 import {
   ascInfo,
@@ -141,18 +150,31 @@ type Feature = (typeof FEATURES)[number];
 
 const LIMITS: Record<Feature, number> = { spread: env.LIMIT_SPREADS, question: env.LIMIT_QUESTIONS, partner: env.LIMIT_PARTNERS };
 
-const PREMIUM = new Set(['natal', 'why', 'compat', 'question', 'theme']);
+const paymentsOn = () => env.PAYMENTS_ENABLED && yookassaReady;
 
-const isSubscribed = (user: User) => Boolean(user.subscribedUntil && user.subscribedUntil > new Date().toISOString());
+const subUntil = (user: User) => subscriptionUntil(user.id);
 
-const requirePremium = (user: User, feature: string) => {
-  if (env.PAYMENTS_ENABLED && PREMIUM.has(feature) && !isSubscribed(user)) throw new HttpError(402, 'premium');
+const isSubscribed = (user: User) => {
+  const until = subUntil(user);
+  return Boolean(until && until > new Date().toISOString());
 };
 
+const hasNatal = (user: User) => !paymentsOn() || isSubscribed(user) || grantRefs(user.id, 'natal').length > 0;
+
+const hasCompat = (user: User, partnerId: string) => !paymentsOn() || isSubscribed(user) || grantRefs(user.id, 'compat').includes(partnerId);
+
+const hasWhy = (user: User) => !paymentsOn() || isSubscribed(user);
+
+const freeQuestionsLeft = (user: User) => Math.max(0, env.FREE_QUESTIONS - totalUsage(user.id, 'question'));
+
 const consume = (user: User, feature: Feature) => {
-  if (isSubscribed(user)) return;
+  if (paymentsOn() && isSubscribed(user)) return;
   const day = today();
-  if (usageOf(user.id, day, feature) >= LIMITS[feature]) throw new HttpError(402, 'limit');
+  if (paymentsOn() && feature === 'question') {
+    if (freeQuestionsLeft(user) <= 0) throw new HttpError(402, 'premium');
+  } else if (usageOf(user.id, day, feature) >= LIMITS[feature]) {
+    throw new HttpError(402, 'limit');
+  }
   addUsage(user.id, day, feature);
 };
 
@@ -160,6 +182,16 @@ const limitsOf = (user: User) => {
   const day = today();
   return Object.fromEntries(FEATURES.map((feature) => [feature, { used: usageOf(user.id, day, feature), max: LIMITS[feature] }]));
 };
+
+const accessOf = (user: User) => ({
+  payments: paymentsOn(),
+  subscribed: paymentsOn() ? isSubscribed(user) : false,
+  until: subUntil(user),
+  natal: hasNatal(user),
+  why: hasWhy(user),
+  compat: grantRefs(user.id, 'compat'),
+  freeQuestions: paymentsOn() && !isSubscribed(user) ? freeQuestionsLeft(user) : null
+});
 
 const birthOf = (user: User): Birth | null => (user.birthDate ? { date: user.birthDate, time: user.birthTime, place: user.place } : null);
 
@@ -185,8 +217,10 @@ const meView = (user: User) => {
     sign: chart ? SIGNS[sunSignIndex(chart)].name : null,
     ascSign: chart && chart.asc !== null ? SIGNS[Math.floor(chart.asc / 30)].name : null,
     limits: limitsOf(user),
-    subscribed: isSubscribed(user),
-    payments: env.PAYMENTS_ENABLED,
+    subscribed: paymentsOn() && isSubscribed(user),
+    payments: paymentsOn(),
+    access: accessOf(user),
+    email: user.email,
     privacyUrl,
     today: { day, dateLabel: dateLong(day, env.APP_TZ), moonLine: daySky(day, env.APP_TZ).moonLine }
   };
@@ -213,7 +247,8 @@ const meBody = z.object({
   consent: z.literal(true).optional(),
   birth: birthBody.optional(),
   notifyMorning: z.boolean().optional(),
-  notifyEvening: z.boolean().optional()
+  notifyEvening: z.boolean().optional(),
+  email: z.email().max(120).optional()
 });
 
 const resolveBirth = (body: z.infer<typeof birthBody>, current: Place | null = null): Birth => {
@@ -242,6 +277,27 @@ type ReadingJob = {
   refresh: boolean;
   maxTokens: number;
   model?: string;
+  lock?: Lock | null;
+};
+
+type Lock = { headings: string[]; maxChars: number };
+
+const NATAL_LOCK: Lock = { headings: ['Где будет трудно', 'Отношения', 'Работа и деньги', 'Ближайший год', 'Советы'], maxChars: 1800 };
+const COMPAT_LOCK: Lock = { headings: ['Где трения', 'Как договариваться', 'На что обратить внимание'], maxChars: 900 };
+
+const cutLocked = (text: string, lock: Lock, final: boolean) => {
+  const lines = text.split('\n');
+  let offset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i === lines.length - 1 && !final) break;
+    const head = line.replace(/^[\s*#_«"]+/, '').toLowerCase();
+    if (offset > 0 && (lock.headings.some((heading) => head.startsWith(heading.toLowerCase())) || offset + line.length > lock.maxChars)) {
+      return { visible: text.slice(0, offset).trimEnd(), hit: true };
+    }
+    offset += line.length + 1;
+  }
+  return { visible: final ? text : text.slice(0, offset), hit: false };
 };
 
 const sendReading = async (reply: FastifyReply, job: ReadingJob) => {
@@ -249,45 +305,100 @@ const sendReading = async (reply: FastifyReply, job: ReadingJob) => {
   const res = reply.raw;
   res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
   const send = (data: Record<string, unknown>) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-  const finish = (source: 'ai' | 'template', note: string | null) => {
-    send({ done: true, source, note });
+  let closed = false;
+  const finish = (source: 'ai' | 'template', note: string | null, locked = false) => {
+    if (closed) return;
+    closed = true;
+    send({ done: true, source, note, locked });
     res.end();
+  };
+  const sendWhole = (text: string, source: 'ai' | 'template', note: string | null) => {
+    if (!job.lock) {
+      send({ delta: text });
+      return finish(source, note);
+    }
+    const cut = cutLocked(text, job.lock, true);
+    send({ delta: cut.visible });
+    finish(source, note, cut.hit);
   };
 
   const cached = job.refresh ? null : getReading(job.user.id, job.kind, job.key);
-  if (cached) {
-    send({ delta: cached });
-    return finish('ai', null);
-  }
+  if (cached) return sendWhole(cached, 'ai', null);
   const blocked = !llmReady ? 'no_key' : !allowLlmCall(job.user.id) ? 'rate_limited' : null;
-  if (blocked) {
-    send({ delta: job.fallback });
-    return finish('template', blocked);
-  }
+  if (blocked) return sendWhole(job.fallback, 'template', blocked);
 
   const ctl = new AbortController();
-  res.on('close', () => ctl.abort());
-  let sent = false;
+  res.on('close', () => {
+    if (!closed) ctl.abort();
+  });
+  let sentLength = 0;
+  let full = '';
   try {
     const text = await streamCompletion(
       job.prompt,
       (delta) => {
-        sent = true;
-        send({ delta });
+        if (closed) return;
+        full += delta;
+        if (!job.lock) {
+          sentLength += delta.length;
+          send({ delta });
+          return;
+        }
+        const cut = cutLocked(full, job.lock, false);
+        if (cut.visible.length > sentLength) {
+          send({ delta: cut.visible.slice(sentLength) });
+          sentLength = cut.visible.length;
+        }
+        if (cut.hit) finish('ai', null, true);
       },
       ctl.signal,
       { maxTokens: job.maxTokens, model: job.model }
     );
     saveReading(job.user.id, job.kind, job.key, text);
+    if (closed) return;
+    if (job.lock) {
+      const cut = cutLocked(text, job.lock, true);
+      if (cut.visible.length > sentLength) send({ delta: cut.visible.slice(sentLength) });
+      return finish('ai', null, cut.hit);
+    }
     finish('ai', null);
   } catch (error) {
+    if (closed) return;
     if (ctl.signal.aborted) return res.end();
     const code = error instanceof LlmError ? error.code : 'upstream_error';
-    if (sent) return finish('ai', 'interrupted');
-    send({ delta: job.fallback });
-    finish('template', code);
+    if (sentLength > 0) return finish('ai', 'interrupted');
+    sendWhole(job.fallback, 'template', code);
   }
 };
+
+export type PaidEvent = { userId: number; product: ProductKey; title: string; until: string | null };
+
+let paidListener: (event: PaidEvent) => void = () => {};
+
+export const onPaid = (listener: (event: PaidEvent) => void) => {
+  paidListener = listener;
+};
+
+const productOf = (key: string): ProductKey | null => PRODUCT_KEYS.find((item) => item === key) ?? null;
+
+const settlePayment = async (id: string) => {
+  const local = getPayment(id);
+  if (!local) return null;
+  if (local.status !== 'pending') return local;
+  const remote = await fetchRemotePayment(id);
+  if (remote.status === 'canceled') markPaymentCanceled(id);
+  if (remote.status === 'succeeded') {
+    const key = productOf(local.product);
+    if (!key) return local;
+    const product = PRODUCTS[key];
+    const applied = completePayment(id, { kind: product.kind, ref: local.ref, days: product.days });
+    if (applied) paidListener({ userId: local.userId, product: key, title: product.title, until: product.days ? subscriptionUntil(local.userId) : null });
+  }
+  return getPayment(id);
+};
+
+const paymentBody = z.object({ product: z.enum(PRODUCT_KEYS), method: z.enum(METHODS), partnerId: z.string().max(64).optional() });
+const webhookBody = z.object({ event: z.string(), object: z.object({ id: z.string().max(64) }) });
 
 const pointView = (chart: Chart) =>
   chart.points.map((point) => ({
@@ -406,6 +517,7 @@ export const createApp = async () => {
       setBirth(user.id, birth.date, birth.time, birth.place);
     }
     setNotifications(user.id, { morning: body.data.notifyMorning, evening: body.data.notifyEvening });
+    if (body.data.email) setEmail(user.id, body.data.email.trim().toLowerCase());
     const fresh = getUser(user.id);
     if (!fresh) throw new HttpError(404, 'not_found');
     return meView(fresh);
@@ -538,7 +650,6 @@ export const createApp = async () => {
     if (!body.success) throw new HttpError(400, 'bad_question');
     const theme = themeOf(body.data.theme);
     if (theme.questionRequired && !body.data.question) throw new HttpError(400, 'bad_question');
-    if (theme.key !== 'general') requirePremium(user, 'theme');
     consume(user, 'spread');
     const id = randomUUID();
     const size = fanSizeFor(theme.positions.length);
@@ -625,7 +736,6 @@ export const createApp = async () => {
 
   app.get('/api/natal/reading', async (request, reply) => {
     const user = authUser(request);
-    requirePremium(user, 'natal');
     const birth = requireBirth(user);
     const chart = chartOf(birth);
     const summary = chartSummary(chart);
@@ -651,13 +761,14 @@ export const createApp = async () => {
       }),
       fallback: summary.slice(0, 3).join('.\n\n'),
       refresh: false,
-      maxTokens: 2600
+      maxTokens: 2600,
+      lock: hasNatal(user) ? null : NATAL_LOCK
     });
   });
 
   app.get('/api/natal/part/:part/reading', async (request, reply) => {
     const user = authUser(request);
-    requirePremium(user, 'natal');
+    if (!hasNatal(user)) throw new HttpError(402, 'natal');
     const birth = requireBirth(user);
     const params = partParams.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'bad_request');
@@ -720,7 +831,7 @@ export const createApp = async () => {
 
   app.get('/api/why/reading', async (request, reply) => {
     const user = authUser(request);
-    requirePremium(user, 'why');
+    if (!hasWhy(user)) throw new HttpError(402, 'premium');
     const birth = requireBirth(user);
     const chart = chartOf(birth);
     const day = today();
@@ -753,7 +864,6 @@ export const createApp = async () => {
 
   app.post('/api/partners', async (request) => {
     const user = authUser(request);
-    requirePremium(user, 'compat');
     const body = partnerBody.safeParse(request.body);
     if (!body.success) throw new HttpError(400, 'bad_request');
     const birth = resolveBirth(body.data);
@@ -791,7 +901,6 @@ export const createApp = async () => {
 
   app.get('/api/partners/:id/reading', async (request, reply) => {
     const user = authUser(request);
-    requirePremium(user, 'compat');
     const params = idParams.safeParse(request.params);
     if (!params.success) throw new HttpError(400, 'bad_request');
     const partner = ownedPartner(user, params.data.id);
@@ -810,13 +919,13 @@ export const createApp = async () => {
       prompt: compatPrompt({ user: pick(mine), partner: pick(theirs), aspects, hasTimes: mine.hasTime && theirs.hasTime }),
       fallback: aspects.length ? `Главные связи между картами: ${aspects.slice(0, 4).join('; ')}.` : 'Точных аспектов между картами нет.',
       refresh: false,
-      maxTokens: 1200
+      maxTokens: 1200,
+      lock: hasCompat(user, partner.id) ? null : COMPAT_LOCK
     });
   });
 
   app.post('/api/questions', async (request) => {
     const user = authUser(request);
-    requirePremium(user, 'question');
     const body = questionBody.safeParse(request.body);
     if (!body.success) throw new HttpError(400, 'bad_question');
     consume(user, 'question');
@@ -852,10 +961,78 @@ export const createApp = async () => {
       }),
       fallback: faces.length
         ? spreadFallback(faces, ['Суть ситуации', 'Что мешает', 'Что поможет'])
-        : 'Нейросеть сейчас недоступна. Попробуйте задать вопрос чуть позже.',
+        : 'Сейчас не получается ответить. Попробуйте задать вопрос чуть позже.',
       refresh: false,
       maxTokens: 1100
     });
+  });
+
+  app.get('/api/plans', async (request) => {
+    const user = authUser(request);
+    return {
+      payments: paymentsOn(),
+      email: user.email,
+      access: accessOf(user),
+      products: PRODUCT_KEYS.map((key) => ({
+        key,
+        title: PRODUCTS[key].title,
+        short: PRODUCTS[key].short,
+        price: PRODUCTS[key].price,
+        days: PRODUCTS[key].days
+      }))
+    };
+  });
+
+  app.post('/api/payments', async (request) => {
+    const user = authUser(request);
+    if (!paymentsOn()) throw new HttpError(409, 'payments_off');
+    const body = paymentBody.safeParse(request.body);
+    if (!body.success) throw new HttpError(400, 'bad_request');
+    if (!user.email) throw new HttpError(409, 'no_email');
+    const product = PRODUCTS[body.data.product];
+    let ref = '';
+    let description: string = product.title;
+    if (body.data.product === 'compat') {
+      const partner = ownedPartner(user, body.data.partnerId ?? '');
+      ref = partner.id;
+      description = `${product.title}: ${partner.name}`;
+    }
+    try {
+      const remote = await createRemotePayment({ userId: user.id, product: body.data.product, ref, email: user.email, method: body.data.method, description });
+      createPayment({ id: remote.id, userId: user.id, product: body.data.product, ref, amount: product.price });
+      return { id: remote.id, url: remote.url };
+    } catch (error) {
+      if (error instanceof PaymentError) throw new HttpError(502, 'payment_failed');
+      throw error;
+    }
+  });
+
+  app.get('/api/payments/:id', async (request) => {
+    const user = authUser(request);
+    const params = idParams.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'bad_request');
+    const local = getPayment(params.data.id);
+    if (!local || local.userId !== user.id) throw new HttpError(404, 'not_found');
+    let payment = local;
+    try {
+      payment = (await settlePayment(local.id)) ?? local;
+    } catch (error) {
+      if (!(error instanceof PaymentError)) throw error;
+    }
+    const fresh = getUser(user.id) ?? user;
+    return { status: payment.status, me: meView(fresh) };
+  });
+
+  app.post('/api/yookassa/webhook', async (request, reply) => {
+    const body = webhookBody.safeParse(request.body);
+    if (!body.success) return reply.status(200).send({ ok: true });
+    try {
+      await settlePayment(body.data.object.id);
+    } catch (error) {
+      console.error('Не удалось обработать уведомление ЮKassa:', error);
+      return reply.status(500).send({ ok: false });
+    }
+    return reply.status(200).send({ ok: true });
   });
 
   app.get('/api/history', async (request) => {

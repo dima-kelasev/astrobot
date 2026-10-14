@@ -11,13 +11,24 @@ export type ReadingState = {
   text: string;
   source: 'ai' | 'template' | null;
   note: string | null;
+  locked: boolean;
 };
 
 type ReadingsState = Record<ReadingKind, ReadingState>;
 
-const empty: ReadingState = { key: null, status: 'idle', text: '', source: null, note: null };
+const empty: ReadingState = { key: null, status: 'idle', text: '', source: null, note: null, locked: false };
 
-const initialState: ReadingsState = { sky: empty, day: empty, spread: empty, natal: empty, natalPart: empty, asc: empty, why: empty, compat: empty, question: empty };
+const initialState: ReadingsState = {
+  sky: empty,
+  day: empty,
+  spread: empty,
+  natal: empty,
+  natalPart: empty,
+  asc: empty,
+  why: empty,
+  compat: empty,
+  question: empty
+};
 
 const readingChunk = createAction<{ kind: ReadingKind; key: string; delta: string }>('readings/chunk');
 
@@ -57,6 +68,7 @@ const readingsSlice = createSlice({
         reading.status = 'done';
         reading.source = action.payload.source;
         reading.note = action.payload.note;
+        reading.locked = action.payload.locked;
       })
       .addCase(fetchReading.rejected, (state, action) => {
         const { kind, key } = action.meta.arg;

@@ -15,6 +15,16 @@ export const limitsSchema = z.object({ spread: limitSchema, question: limitSchem
 
 const placeSchema = z.object({ name: z.string(), label: z.string() });
 
+export const accessSchema = z.object({
+  payments: z.boolean(),
+  subscribed: z.boolean(),
+  until: z.string().nullable(),
+  natal: z.boolean(),
+  why: z.boolean(),
+  compat: z.array(z.string()),
+  freeQuestions: z.number().nullable()
+});
+
 export const meSchema = z.object({
   id: z.number(),
   firstName: z.string(),
@@ -27,6 +37,8 @@ export const meSchema = z.object({
   limits: limitsSchema,
   subscribed: z.boolean(),
   payments: z.boolean(),
+  access: accessSchema,
+  email: z.string().nullable(),
   privacyUrl: z.string(),
   today: z.object({ day: z.string(), dateLabel: z.string(), moonLine: z.string() })
 });
@@ -193,12 +205,29 @@ export const streamEventSchema = z.object({
   delta: z.string().optional(),
   done: z.boolean().optional(),
   source: z.enum(['ai', 'template']).optional(),
-  note: z.string().nullable().optional()
+  note: z.string().nullable().optional(),
+  locked: z.boolean().optional()
 });
+
+export const PRODUCT_KEYS = ['month', 'quarter', 'year', 'natal', 'compat'] as const;
+
+export const plansSchema = z.object({
+  payments: z.boolean(),
+  email: z.string().nullable(),
+  access: accessSchema,
+  products: z.array(z.object({ key: z.enum(PRODUCT_KEYS), title: z.string(), short: z.string(), price: z.number(), days: z.number().nullable() }))
+});
+
+export const paymentCreatedSchema = z.object({ id: z.string(), url: z.string() });
+
+export const paymentStatusSchema = z.object({ status: z.enum(['pending', 'succeeded', 'canceled']), me: meSchema });
 
 export type Card = z.infer<typeof cardSchema>;
 export type Limits = z.infer<typeof limitsSchema>;
 export type Me = z.infer<typeof meSchema>;
+export type Access = z.infer<typeof accessSchema>;
+export type Plans = z.infer<typeof plansSchema>;
+export type ProductKey = (typeof PRODUCT_KEYS)[number];
 export type Sky = z.infer<typeof skySchema>;
 export type Day = z.infer<typeof daySchema>;
 export type Theme = z.infer<typeof themeSchema>;

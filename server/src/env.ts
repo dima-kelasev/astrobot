@@ -19,7 +19,7 @@ const schema = z.object({
   HOST: z.string().default('127.0.0.1'),
   DB_PATH: z.string().default(fileURLToPath(new URL('../../data/astrobot.db', import.meta.url))),
   APP_TZ: z.string().default('Europe/Moscow'),
-  LIMIT_SPREADS: z.coerce.number().int().min(0).default(3),
+  LIMIT_SPREADS: z.coerce.number().int().min(0).default(1),
   LIMIT_QUESTIONS: z.coerce.number().int().min(0).default(3),
   LIMIT_PARTNERS: z.coerce.number().int().min(0).default(3),
   PAYMENTS_ENABLED: z
@@ -29,6 +29,17 @@ const schema = z.object({
   NOTIFY_HOUR: z.coerce.number().int().min(0).max(23).default(9),
   EVENING_HOUR: z.coerce.number().int().min(0).max(23).default(20),
   SITE_URL: z.string().default(''),
+  BOT_USERNAME: z.string().default(''),
+  YOOKASSA_SHOP_ID: z.string().default(''),
+  YOOKASSA_SECRET_KEY: z.string().default(''),
+  YOOKASSA_API: z.string().default('https://api.yookassa.ru/v3'),
+  YOOKASSA_RECEIPTS: z
+    .enum(['0', '1', 'true', 'false'])
+    .default('1')
+    .transform((value) => value === '1' || value === 'true'),
+  YOOKASSA_VAT_CODE: z.coerce.number().int().min(1).max(12).default(1),
+  PAYMENT_RETURN_URL: z.string().default(''),
+  FREE_QUESTIONS: z.coerce.number().int().min(0).default(1),
   DEV_USER_ID: z.coerce.number().int().positive().optional()
 });
 
@@ -51,3 +62,9 @@ const originOf = (url: string) => {
 
 export const siteOrigin = env.SITE_URL.replace(/\/+$/, '') || originOf(env.WEBAPP_URL);
 export const privacyUrl = siteOrigin ? `${siteOrigin}/privacy/` : '';
+
+export const yookassaReady = Boolean(env.YOOKASSA_SHOP_ID && env.YOOKASSA_SECRET_KEY);
+
+const botName = env.BOT_USERNAME.replace(/^@/, '');
+
+export const paymentReturnUrl = env.PAYMENT_RETURN_URL || (botName ? `https://t.me/${botName}?start=paid` : siteOrigin || 'https://t.me');

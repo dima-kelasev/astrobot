@@ -76,6 +76,26 @@ db.exec(`
     n INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, day, feature)
   );
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    product TEXT NOT NULL,
+    ref TEXT NOT NULL DEFAULT '',
+    amount INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    paid_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS payments_user ON payments (user_id, created_at);
+  CREATE TABLE IF NOT EXISTS grants (
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    ref TEXT NOT NULL DEFAULT '',
+    until TEXT,
+    payment_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS grants_user ON grants (user_id, kind);
   CREATE TABLE IF NOT EXISTS broadcasts (
     day TEXT NOT NULL,
     slot TEXT NOT NULL,
@@ -87,7 +107,12 @@ db.exec(`
 const columnRow = z.object({ name: z.string() });
 
 const addColumns = (table: string, columns: [string, string][]) => {
-  const existing = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((row) => columnRow.parse(row).name));
+  const existing = new Set(
+    db
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map((row) => columnRow.parse(row).name)
+  );
   for (const [name, type] of columns) if (!existing.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
 };
 
@@ -102,7 +127,8 @@ addColumns('users', [
   ['notify_morning', 'INTEGER NOT NULL DEFAULT 1'],
   ['notify_evening', 'INTEGER NOT NULL DEFAULT 1'],
   ['last_morning_day', 'TEXT'],
-  ['last_evening_day', 'TEXT']
+  ['last_evening_day', 'TEXT'],
+  ['email', 'TEXT']
 ]);
 addColumns('spreads', [
   ['theme', "TEXT NOT NULL DEFAULT 'general'"],
@@ -124,6 +150,7 @@ const userRow = z.object({
   notify_evening: z.number(),
   credits: z.number(),
   subscribed_until: z.string().nullable(),
+  email: z.string().nullable(),
   created_at: z.string()
 });
 
@@ -180,6 +207,7 @@ export type User = {
   notifyEvening: boolean;
   credits: number;
   subscribedUntil: string | null;
+  email: string | null;
 };
 
 export type Spread = {
@@ -232,7 +260,8 @@ const toUser = (row: unknown): User | null => {
     notifyMorning: r.notify_morning === 1,
     notifyEvening: r.notify_evening === 1,
     credits: r.credits,
-    subscribedUntil: r.subscribed_until
+    subscribedUntil: r.subscribed_until,
+    email: r.email
   };
 };
 
@@ -283,9 +312,16 @@ export const setConsent = (id: number) => {
 };
 
 export const setBirth = (id: number, birthDate: string, birthTime: string | null, place: Place | null) => {
-  db.prepare(
-    'UPDATE users SET birth_date = ?, birth_time = ?, place_name = ?, place_label = ?, place_lat = ?, place_lon = ?, place_tz = ? WHERE id = ?'
-  ).run(birthDate, birthTime, place?.name ?? null, place?.label ?? null, place?.lat ?? null, place?.lon ?? null, place?.tz ?? null, id);
+  db.prepare('UPDATE users SET birth_date = ?, birth_time = ?, place_name = ?, place_label = ?, place_lat = ?, place_lon = ?, place_tz = ? WHERE id = ?').run(
+    birthDate,
+    birthTime,
+    place?.name ?? null,
+    place?.label ?? null,
+    place?.lat ?? null,
+    place?.lon ?? null,
+    place?.tz ?? null,
+    id
+  );
 };
 
 export const setNotifications = (id: number, patch: { morning?: boolean; evening?: boolean }) => {
@@ -298,6 +334,109 @@ export const deleteUserData = (id: number) => {
     db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(id);
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+};
+
+export const setEmail = (id: number, email: string) => {
+  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, id);
+};
+
+export const totalUsage = (userId: number, feature: string) => {
+  const row = db.prepare('SELECT COALESCE(SUM(n), 0) AS n FROM usage WHERE user_id = ? AND feature = ?').get(userId, feature);
+  return row === undefined ? 0 : countRow.parse(row).n;
+};
+
+export type PaymentStatus = 'pending' | 'succeeded' | 'canceled';
+
+const paymentRow = z.object({
+  id: z.string(),
+  user_id: z.number(),
+  product: z.string(),
+  ref: z.string(),
+  amount: z.number(),
+  status: z.enum(['pending', 'succeeded', 'canceled']),
+  created_at: z.string(),
+  paid_at: z.string().nullable()
+});
+
+export type Payment = {
+  id: string;
+  userId: number;
+  product: string;
+  ref: string;
+  amount: number;
+  status: PaymentStatus;
+  createdAt: string;
+  paidAt: string | null;
+};
+
+const toPayment = (row: unknown): Payment | null => {
+  if (row === undefined) return null;
+  const r = paymentRow.parse(row);
+  return { id: r.id, userId: r.user_id, product: r.product, ref: r.ref, amount: r.amount, status: r.status, createdAt: r.created_at, paidAt: r.paid_at };
+};
+
+export const createPayment = (payment: { id: string; userId: number; product: string; ref: string; amount: number }) => {
+  db.prepare('INSERT INTO payments (id, user_id, product, ref, amount, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    payment.id,
+    payment.userId,
+    payment.product,
+    payment.ref,
+    payment.amount,
+    'pending',
+    now()
+  );
+};
+
+export const getPayment = (id: string) => toPayment(db.prepare('SELECT * FROM payments WHERE id = ?').get(id));
+
+export const markPaymentCanceled = (id: string) => {
+  db.prepare("UPDATE payments SET status = 'canceled' WHERE id = ? AND status = 'pending'").run(id);
+};
+
+const untilRow = z.object({ until: z.string().nullable() });
+const refRow = z.object({ ref: z.string() });
+
+export const subscriptionUntil = (userId: number) => {
+  const row = db.prepare("SELECT MAX(until) AS until FROM grants WHERE user_id = ? AND kind = 'sub'").get(userId);
+  return row === undefined ? null : untilRow.parse(row).until;
+};
+
+export const grantRefs = (userId: number, kind: string) =>
+  db
+    .prepare('SELECT ref FROM grants WHERE user_id = ? AND kind = ?')
+    .all(userId, kind)
+    .map((row) => refRow.parse(row).ref);
+
+export const completePayment = (id: string, grant: { kind: string; ref: string; days: number | null }) => {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const changed = db.prepare("UPDATE payments SET status = 'succeeded', paid_at = ? WHERE id = ? AND status != 'succeeded'").run(now(), id);
+    if (Number(changed.changes) === 0) {
+      db.exec('COMMIT');
+      return false;
+    }
+    const payment = getPayment(id);
+    if (!payment) throw new Error('payment_missing');
+    let until: string | null = null;
+    if (grant.days !== null) {
+      const current = subscriptionUntil(payment.userId);
+      const start = current && current > now() ? new Date(current) : new Date();
+      until = new Date(start.getTime() + grant.days * 86400000).toISOString();
+    }
+    db.prepare('INSERT INTO grants (user_id, kind, ref, until, payment_id, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+      payment.userId,
+      grant.kind,
+      grant.ref,
+      until,
+      id,
+      now()
+    );
+    db.exec('COMMIT');
+    return true;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 };
 
 export const usageOf = (userId: number, day: string, feature: string) => {
@@ -313,9 +452,17 @@ export const addUsage = (userId: number, day: string, feature: string) => {
 };
 
 export const createSpread = (spread: Spread) => {
-  db.prepare(
-    'INSERT INTO spreads (id, user_id, day, question, deck, picks, paid, theme, size, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
-  ).run(spread.id, spread.userId, spread.day, spread.question, JSON.stringify(spread.deck), JSON.stringify(spread.picks), spread.theme, spread.size, spread.createdAt);
+  db.prepare('INSERT INTO spreads (id, user_id, day, question, deck, picks, paid, theme, size, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)').run(
+    spread.id,
+    spread.userId,
+    spread.day,
+    spread.question,
+    JSON.stringify(spread.deck),
+    JSON.stringify(spread.picks),
+    spread.theme,
+    spread.size,
+    spread.createdAt
+  );
 };
 
 export const getSpread = (id: string) => toSpread(db.prepare('SELECT * FROM spreads WHERE id = ?').get(id));

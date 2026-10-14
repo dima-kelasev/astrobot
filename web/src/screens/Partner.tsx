@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Paywall } from '../components/Paywall';
 import { Reading } from '../components/Reading';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
@@ -15,6 +16,11 @@ export const Partner = () => {
   const status = useAppSelector((state) => state.partners.detailStatus);
   const [confirm, setConfirm] = useState(false);
   const ready = detail !== null && detail.partner.id === id;
+  const full = useAppSelector((state) => {
+    const access = state.profile.me?.access;
+    return !access || !access.payments || access.subscribed || (id !== null && access.compat.includes(id));
+  });
+  const readingKey = id ? `${id}|${full ? 'full' : 'free'}` : null;
 
   useEffect(() => {
     if (!id) return;
@@ -23,12 +29,12 @@ export const Partner = () => {
   }, [id, dispatch]);
 
   useEffect(() => {
-    if (!ready || !id) return;
+    if (!ready || !id || !readingKey) return;
     const current = store.getState().readings.compat;
-    if (current.key === id && current.status !== 'idle' && current.status !== 'error') return;
-    const request = dispatch(fetchReading({ kind: 'compat', key: id, path: `/api/partners/${id}/reading` }));
+    if (current.key === readingKey && current.status !== 'idle' && current.status !== 'error') return;
+    const request = dispatch(fetchReading({ kind: 'compat', key: readingKey, path: `/api/partners/${id}/reading` }));
     return () => request.abort();
-  }, [ready, id, dispatch, store]);
+  }, [ready, id, readingKey, dispatch, store]);
 
   if (!id) return null;
 
@@ -54,7 +60,19 @@ export const Partner = () => {
               <p className={ui.hint}>Точных аспектов между картами нет.</p>
             )}
           </div>
-          <Reading kind="compat" />
+          <Reading
+            kind="compat"
+            locked={
+              <Paywall
+                title={`Дальше о вас и ${detail.partner.name}`}
+                text="Где между вами трения, как договариваться и на что обратить внимание."
+                topics={['Где трения', 'Как договариваться', 'На что обратить внимание']}
+                product="compat"
+                partnerId={detail.partner.id}
+                partnerName={detail.partner.name}
+              />
+            }
+          />
           {!confirm ? (
             <button className={cx(ui.btn, ui.btnGhost, ui.btnWide)} type="button" onClick={() => setConfirm(true)}>
               Удалить этого человека

@@ -25,6 +25,7 @@ export const Ask = () => {
   const dispatch = useAppDispatch();
   const hasBirth = useAppSelector((state) => state.profile.me?.birth != null);
   const text = useAppSelector((state) => state.question.text);
+  const freeQuestions = useAppSelector((state) => state.profile.me?.access.freeQuestions ?? null);
 
   const send = (question: string) => {
     dispatch(resetReading('question'));
@@ -55,6 +56,9 @@ export const Ask = () => {
         <span className={ui.eyebrow}>Свой вопрос</span>
         <h1 className={ui.title}>Что вас волнует?</h1>
         <p className={ui.lead}>Напишите своими словами. Бот сам выберет, чем ответить: картами Таро или вашей натальной картой.</p>
+        {freeQuestions !== null && (
+          <p className={ui.hint}>{freeQuestions > 0 ? 'Первый вопрос бесплатно.' : 'Бесплатный вопрос уже задан. Дальше вопросы входят в подписку.'}</p>
+        )}
       </div>
       <div className={ui.block}>
         <div className={ui.textareaWrap}>

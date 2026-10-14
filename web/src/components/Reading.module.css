@@ -96,3 +96,8 @@
     animation: none;
   }
 }
+
+.faded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 90px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 90px), transparent);
+}

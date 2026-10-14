@@ -5,6 +5,7 @@ import { showNatalPart, toggleNatalPart } from '../store/chartSlice';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
 import type { AppDispatch } from '../store';
 import { fetchReading } from '../store/readingsSlice';
+import { Paywall } from './Paywall';
 import { Reading } from './Reading';
 import styles from './NatalParts.module.css';
 
@@ -37,10 +38,19 @@ type CardProps = { part: string; baseKey: string; badge: ReactNode; title: strin
 const Card = ({ part, baseKey, badge, title, sub, accent, children }: CardProps) => {
   const dispatch = useAppDispatch();
   const open = useAppSelector((state) => state.chart.natalView.open === part);
+  const full = useAppSelector((state) => state.profile.me?.access.natal ?? true);
   return (
     <div id={`part-${part}`} className={cx(styles.card, open && styles.cardOpen)}>
       <button className={styles.head} type="button" aria-expanded={open} onClick={() => dispatch(toggleNatalPart(part))}>
-        <span className={cx(styles.badge, accent && styles.badgeAccent, typeof badge === 'string' && /^[A-Za-z]+$/.test(badge) && styles.badgeText, typeof badge === 'number' && styles.badgeNumber)} aria-hidden="true">
+        <span
+          className={cx(
+            styles.badge,
+            accent && styles.badgeAccent,
+            typeof badge === 'string' && /^[A-Za-z]+$/.test(badge) && styles.badgeText,
+            typeof badge === 'number' && styles.badgeNumber
+          )}
+          aria-hidden="true"
+        >
           {badge}
         </span>
         <span className={styles.titles}>
@@ -64,7 +74,15 @@ const Card = ({ part, baseKey, badge, title, sub, accent, children }: CardProps)
         <div className={styles.inner}>
           <div className={styles.content}>
             {children}
-            {open && <PartReading part={part} baseKey={baseKey} />}
+            {open && full && <PartReading part={part} baseKey={baseKey} />}
+            {open && !full && (
+              <Paywall
+                compact
+                title="Толкование открывается с полной картой"
+                text="Что это положение значит именно для вас и как с ним жить."
+                product="natal"
+              />
+            )}
           </div>
         </div>
       </div>

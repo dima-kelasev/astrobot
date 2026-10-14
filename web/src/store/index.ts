@@ -4,6 +4,7 @@ import { dayReducer } from './daySlice';
 import { historyReducer } from './historySlice';
 import { navReducer } from './navSlice';
 import { partnersReducer } from './partnersSlice';
+import { paymentReducer } from './paymentSlice';
 import { profileReducer } from './profileSlice';
 import { questionReducer } from './questionSlice';
 import { readingsReducer } from './readingsSlice';
@@ -21,7 +22,8 @@ export const store = configureStore({
     chart: chartReducer,
     partners: partnersReducer,
     question: questionReducer,
-    history: historyReducer
+    history: historyReducer,
+    payment: paymentReducer
   }
 });
 

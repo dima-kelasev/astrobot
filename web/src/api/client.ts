@@ -13,13 +13,17 @@ import {
   partnerAddSchema,
   partnerDetailSchema,
   partnersSchema,
+  paymentCreatedSchema,
+  paymentStatusSchema,
   pickSchema,
+  plansSchema,
   questionStartSchema,
   skySchema,
   spreadStartSchema,
   streamEventSchema,
   themesSchema,
-  whySchema
+  whySchema,
+  type ProductKey
 } from './schemas';
 
 export class ApiError extends Error {
@@ -73,7 +77,9 @@ const request = async <T>(schema: z.ZodType<T>, path: string, options: RequestOp
 
 export type BirthInput = { date: string; time: string | null; placeId: number | null; placeName?: string; keepPlace?: true };
 
-export type MePatch = { consent?: true; birth?: BirthInput; notifyMorning?: boolean; notifyEvening?: boolean };
+export type MePatch = { consent?: true; birth?: BirthInput; notifyMorning?: boolean; notifyEvening?: boolean; email?: string };
+
+export type PayMethod = 'sbp' | 'card' | 'other';
 
 export const api = {
   me: (signal?: AbortSignal) => request(meSchema, '/api/me', { signal }),
@@ -94,12 +100,15 @@ export const api = {
   partner: (id: string, signal?: AbortSignal) => request(partnerDetailSchema, `/api/partners/${id}`, { signal }),
   deletePartner: (id: string) => request(deletedSchema, `/api/partners/${id}`, { method: 'DELETE' }),
   ask: (text: string) => request(questionStartSchema, '/api/questions', { method: 'POST', body: { text } }),
+  plans: (signal?: AbortSignal) => request(plansSchema, '/api/plans', { signal }),
+  pay: (body: { product: ProductKey; method: PayMethod; partnerId?: string }) => request(paymentCreatedSchema, '/api/payments', { method: 'POST', body }),
+  paymentStatus: (id: string, signal?: AbortSignal) => request(paymentStatusSchema, `/api/payments/${encodeURIComponent(id)}`, { signal }),
   history: (signal?: AbortSignal) => request(historySchema, '/api/history', { signal }),
   historyItem: (kind: string, key: string, signal?: AbortSignal) =>
     request(historyItemSchema, `/api/history/item?kind=${encodeURIComponent(kind)}&key=${encodeURIComponent(key)}`, { signal })
 };
 
-export type ReadingDone = { source: 'ai' | 'template'; note: string | null };
+export type ReadingDone = { source: 'ai' | 'template'; note: string | null; locked: boolean };
 
 export const streamReading = async (path: string, onDelta: (delta: string) => void, signal: AbortSignal) => {
   let res: Response;
@@ -135,7 +144,7 @@ export const streamReading = async (path: string, onDelta: (delta: string) => vo
       const event = streamEventSchema.safeParse(json);
       if (!event.success) continue;
       if (event.data.delta) onDelta(event.data.delta);
-      if (event.data.done) result = { source: event.data.source ?? 'ai', note: event.data.note ?? null };
+      if (event.data.done) result = { source: event.data.source ?? 'ai', note: event.data.note ?? null, locked: event.data.locked ?? false };
     }
   }
   if (!result) throw new ApiError(0, 'interrupted');

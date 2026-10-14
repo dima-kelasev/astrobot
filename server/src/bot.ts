@@ -2,7 +2,7 @@ import type { Agent } from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Markup, Telegraf, TelegramError } from 'telegraf';
-import { deleteUserData, upsertUser, type Slot, type User } from './db.js';
+import { deleteUserData, grantRefs, subscriptionUntil, upsertUser, type Slot, type User } from './db.js';
 import { env, privacyUrl } from './env.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
@@ -38,6 +38,25 @@ const WELCOME = [
   'Утром и вечером я присылаю короткое сообщение. Отключить можно в профиле.'
 ].join('\n');
 
+const dateText = (iso: string) =>
+  new Intl.DateTimeFormat('ru-RU', { timeZone: env.APP_TZ, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
+
+const paidStatus = (userId: number) => {
+  const until = subscriptionUntil(userId);
+  if (until && until > new Date().toISOString()) return `Спасибо! Подписка активна до ${dateText(until)}. Всё уже открыто в Астроботе.`;
+  if (grantRefs(userId, 'natal').length || grantRefs(userId, 'compat').length) return 'Спасибо! Покупка уже открыта в Астроботе.';
+  return 'Платёж ещё обрабатывается. Обычно это занимает до минуты. Если через несколько минут ничего не изменится, напишите на почту из политики конфиденциальности.';
+};
+
+export const sendPaid = async (bot: Telegraf, event: { userId: number; title: string; until: string | null }) => {
+  const text = event.until ? `Оплата прошла. ${event.title}: доступ открыт до ${dateText(event.until)}.` : `Оплата прошла. ${event.title}: уже открыто.`;
+  try {
+    await bot.telegram.sendMessage(event.userId, text, hasWebApp ? openKeyboard() : undefined);
+  } catch (error) {
+    console.error('Не удалось сообщить об оплате:', reasonOf(error));
+  }
+};
+
 const DELETE_TEXT = 'Удалить все ваши данные: дату, время и место рождения, расклады, историю и данные партнёров? Это нельзя отменить.';
 
 const proxyAgent = (): Agent | undefined => {
@@ -64,6 +83,10 @@ export const createBot = () => {
 
   bot.start(async (ctx) => {
     upsertUser(ctx.from.id, ctx.from.first_name);
+    if (ctx.payload === 'paid') {
+      await ctx.reply(paidStatus(ctx.from.id), hasWebApp ? openKeyboard() : undefined);
+      return;
+    }
     if (hasWebApp) await ctx.reply(WELCOME, openKeyboard());
     else await ctx.reply(`${WELCOME}\n\nМини-апп пока не подключён: в настройках сервера не задан адрес WEBAPP_URL.`);
   });
@@ -77,7 +100,10 @@ export const createBot = () => {
   });
 
   bot.command('delete', async (ctx) => {
-    await ctx.reply(DELETE_TEXT, Markup.inlineKeyboard([Markup.button.callback('Удалить данные', 'delete_confirm'), Markup.button.callback('Отмена', 'delete_cancel')]));
+    await ctx.reply(
+      DELETE_TEXT,
+      Markup.inlineKeyboard([Markup.button.callback('Удалить данные', 'delete_confirm'), Markup.button.callback('Отмена', 'delete_cancel')])
+    );
   });
 
   bot.action('delete_confirm', async (ctx) => {

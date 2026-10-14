@@ -1,44 +1,115 @@
+import { useEffect } from 'react';
+import type { ProductKey } from '../api/schemas';
 import { cx } from '../lib/cx';
-import { useAppSelector } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { fetchPlans, openPay } from '../store/paymentSlice';
 import ui from '../styles/ui.module.css';
 import styles from './Plan.module.css';
 
+const INCLUDED = [
+  'Натальная карта целиком: все планеты, дома, слабые места и советы',
+  'Прогноз на ближайший год, обновляется каждый месяц',
+  '«Почему сейчас так?» по вашей карте',
+  'Свои вопросы и расклады по темам без ограничений',
+  'Совместимость с любыми людьми'
+];
+
+const SUBS: { key: Extract<ProductKey, 'month' | 'quarter' | 'year'>; months: number; note: string | null }[] = [
+  { key: 'year', months: 12, note: 'Выгоднее всего' },
+  { key: 'quarter', months: 3, note: null },
+  { key: 'month', months: 1, note: null }
+];
+
+const dateText = (iso: string) => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
+
 export const Plan = () => {
+  const dispatch = useAppDispatch();
   const me = useAppSelector((state) => state.profile.me);
+  const plans = useAppSelector((state) => state.payment.plans);
+  const status = useAppSelector((state) => state.payment.plansStatus);
+
+  useEffect(() => {
+    const request = dispatch(fetchPlans());
+    return () => request.abort();
+  }, [dispatch]);
+
   if (!me) return null;
-  const { spread, question, partner } = me.limits;
+  const access = me.access;
+  const priceOf = (key: ProductKey) => plans?.products.find((item) => item.key === key) ?? null;
+  const natal = priceOf('natal');
+
+  if (!access.payments) {
+    return (
+      <section className={ui.screen}>
+        <div className={ui.head}>
+          <span className={ui.eyebrow}>Подписка</span>
+          <h1 className={ui.title}>Сейчас всё открыто</h1>
+          <p className={ui.lead}>Пока подписка не нужна: все функции работают бесплатно с небольшими дневными лимитами.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={ui.screen}>
       <div className={ui.head}>
-        <span className={ui.eyebrow}>Тарифы</span>
-        <h1 className={ui.title}>Подписка</h1>
-        <p className={ui.lead}>{me.subscribed ? 'Подписка активна: лимитов нет.' : 'Сейчас все функции открыты с дневными лимитами.'}</p>
+        <span className={ui.eyebrow}>Подписка</span>
+        <h1 className={ui.title}>Всё о вас без ограничений</h1>
+        <p className={ui.lead}>Гороскоп, карта дня и асцендент остаются бесплатными. Подписка открывает всё остальное.</p>
       </div>
-      <div className={cx(ui.glass, ui.field)}>
-        <span className={ui.label}>Сегодня осталось</span>
-        <ul className={ui.lines}>
-          <li>
-            Расклады: {Math.max(0, spread.max - spread.used)} из {spread.max}
-          </li>
-          <li>
-            Свои вопросы: {Math.max(0, question.max - question.used)} из {question.max}
-          </li>
-          <li>
-            Совместимость: {Math.max(0, partner.max - partner.used)} из {partner.max}
-          </li>
-        </ul>
-      </div>
+
+      {access.subscribed && access.until && (
+        <div className={cx(ui.glass, styles.active)}>
+          <span className={styles.activeTitle}>Подписка активна</span>
+          <span className={styles.desc}>До {dateText(access.until)}. Продлить можно заранее: дни прибавятся к текущему сроку.</span>
+        </div>
+      )}
+
+      <ul className={cx(ui.glass, styles.included)}>
+        {INCLUDED.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+
+      {status === 'error' && <p className={ui.error}>Не получилось загрузить тарифы. Откройте экран ещё раз.</p>}
+
       <div className={styles.plans}>
-        <div className={cx(ui.glass, styles.plan)}>
-          <span className={styles.name}>Бесплатно</span>
-          <span className={styles.desc}>Гороскоп и карта дня каждый день, асцендент, расклад на вопрос.</span>
-        </div>
-        <div className={cx(ui.glass, styles.plan, styles.best)}>
-          <span className={styles.name}>Подписка</span>
-          <span className={styles.desc}>Натальная карта, «Почему сейчас так?», совместимость, свои вопросы и расклады по темам без лимитов.</span>
-        </div>
+        {SUBS.map((sub) => {
+          const product = priceOf(sub.key);
+          if (!product) return null;
+          return (
+            <button
+              key={sub.key}
+              className={cx(ui.glass, styles.plan, sub.note && styles.best)}
+              type="button"
+              onClick={() => dispatch(openPay({ product: sub.key, partnerId: null, partnerName: null }))}
+            >
+              <span className={styles.name}>
+                {product.short}
+                {sub.note && <span className={styles.badge}>{sub.note}</span>}
+              </span>
+              <span className={styles.price}>{product.price} ₽</span>
+              <span className={styles.desc}>{sub.months > 1 ? `${Math.round(product.price / sub.months)} ₽ в месяц` : 'Можно начать с месяца'}</span>
+            </button>
+          );
+        })}
       </div>
-      <p className={ui.hint}>Оплата появится в следующем обновлении.</p>
+
+      {natal && !access.natal && (
+        <button
+          className={cx(ui.glass, styles.plan, styles.single)}
+          type="button"
+          onClick={() => dispatch(openPay({ product: 'natal', partnerId: null, partnerName: null }))}
+        >
+          <span className={styles.name}>Только натальная карта</span>
+          <span className={styles.price}>{natal.price} ₽</span>
+          <span className={styles.desc}>Все планеты, дома и советы вашей карты. Покупается один раз и остаётся навсегда.</span>
+        </button>
+      )}
+
+      <p className={ui.hint}>
+        Оплата через ЮKassa: СБП, банковская карта и другие способы. Подписка не продлевается сама, списаний без вашего ведома не будет.
+      </p>
     </section>
   );
 };

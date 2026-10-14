@@ -1,6 +1,7 @@
 import { useEffect, type ComponentType } from 'react';
 import styles from './App.module.css';
 import { BottomNav } from './components/BottomNav';
+import { PaySheet } from './components/PaySheet';
 import { Starfield } from './components/Starfield';
 import { TopBar } from './components/TopBar';
 import { cx } from './lib/cx';
@@ -55,7 +56,8 @@ const DEEP_LINKS: Record<string, Screen> = {
   natal: 'natal',
   why: 'why',
   asc: 'asc',
-  compat: 'compat'
+  compat: 'compat',
+  plan: 'plan'
 };
 
 const startScreen = () => {
@@ -115,6 +117,7 @@ export const App = () => {
         <p className={styles.disclaimer}>Толкования не заменяют консультацию врача, юриста и финансового специалиста.</p>
       </div>
       {ready && <BottomNav />}
+      {ready && <PaySheet />}
     </>
   );
 };

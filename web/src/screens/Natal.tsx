@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { AspectList, HouseCard, PlanetCard, focusPart } from '../components/NatalParts';
 import { NatalWheel } from '../components/NatalWheel';
 import { NeedBirth } from '../components/NeedBirth';
+import { Paywall } from '../components/Paywall';
 import { Reading } from '../components/Reading';
 import { cx } from '../lib/cx';
 import { NATAL_TABS, fetchNatal, setNatalTab, type NatalTab } from '../store/chartSlice';
@@ -21,7 +22,9 @@ export const Natal = () => {
   const status = useAppSelector((state) => state.chart.natal.status);
   const tab = useAppSelector((state) => state.chart.natalView.tab);
   const open = useAppSelector((state) => state.chart.natalView.open);
-  const readingKey = natal && birth ? `${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
+  const full = useAppSelector((state) => state.profile.me?.access.natal ?? true);
+  const birthKey = birth ? `${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
+  const readingKey = natal && birthKey ? `${birthKey}|${full ? 'full' : 'free'}` : null;
 
   useEffect(() => {
     if (!birth || store.getState().chart.natal.status === 'ready') return;
@@ -94,14 +97,14 @@ export const Natal = () => {
           {tab === 'planets' && (
             <div className={styles.stack}>
               {natal.items.map((item) => (
-                <PlanetCard key={item.key} item={item} baseKey={readingKey} />
+                <PlanetCard key={item.key} item={item} baseKey={birthKey ?? ''} />
               ))}
             </div>
           )}
           {tab === 'houses' && (
             <div className={styles.stack}>
               {natal.houseItems.length > 0 ? (
-                natal.houseItems.map((house) => <HouseCard key={house.house} house={house} baseKey={readingKey} />)
+                natal.houseItems.map((house) => <HouseCard key={house.house} house={house} baseKey={birthKey ?? ''} />)
               ) : (
                 <div className={cx(ui.glass, ui.notice)}>
                   <span className={ui.sub}>Нужно время рождения</span>
@@ -146,7 +149,17 @@ export const Natal = () => {
             </div>
           )}
           <h2 className={ui.sub}>Разбор всей карты</h2>
-          <Reading kind="natal" />
+          <Reading
+            kind="natal"
+            locked={
+              <Paywall
+                title="Дальше в полной карте"
+                text="Где вам будет трудно и что с этим делать, отношения, работа и деньги, ближайший год по месяцам и личные советы."
+                topics={['Где будет трудно', 'Отношения', 'Работа и деньги', 'Ближайший год', 'Советы']}
+                product="natal"
+              />
+            }
+          />
         </>
       )}
     </section>

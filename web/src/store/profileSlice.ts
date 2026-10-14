@@ -48,6 +48,9 @@ const profileSlice = createSlice({
   reducers: {
     limitsChanged: (state, action: PayloadAction<Limits>) => {
       if (state.me) state.me.limits = action.payload;
+    },
+    meLoaded: (state, action: PayloadAction<Me>) => {
+      state.me = action.payload;
     }
   },
   extraReducers: (builder) => {
@@ -100,5 +103,5 @@ const profileSlice = createSlice({
   }
 });
 
-export const { limitsChanged } = profileSlice.actions;
+export const { limitsChanged, meLoaded } = profileSlice.actions;
 export const profileReducer = profileSlice.reducer;

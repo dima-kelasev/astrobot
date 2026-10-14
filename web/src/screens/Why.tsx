@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NeedBirth } from '../components/NeedBirth';
+import { Paywall } from '../components/Paywall';
 import { Reading } from '../components/Reading';
 import { cx } from '../lib/cx';
 import { fetchWhy } from '../store/chartSlice';
@@ -15,7 +16,8 @@ export const Why = () => {
   const day = useAppSelector((state) => state.profile.me?.today.day ?? '');
   const why = useAppSelector((state) => state.chart.why.data);
   const status = useAppSelector((state) => state.chart.why.status);
-  const readingKey = why && birth ? `${day}|${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
+  const allowed = useAppSelector((state) => state.profile.me?.access.why ?? true);
+  const readingKey = why && birth && allowed ? `${day}|${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
 
   useEffect(() => {
     if (!birth || store.getState().chart.why.status === 'ready') return;
@@ -36,9 +38,14 @@ export const Why = () => {
       <div className={ui.head}>
         <span className={ui.eyebrow}>Транзиты</span>
         <h1 className={ui.title}>Почему сейчас так?</h1>
-        <p className={ui.lead}>Медленные планеты сейчас стоят под особыми углами к планетам вашей карты рождения. По астрологической традиции так объясняют, почему в жизни наступает тот или иной период.</p>
+        <p className={ui.lead}>
+          Медленные планеты сейчас стоят под особыми углами к планетам вашей карты рождения. По астрологической традиции так объясняют, почему в жизни наступает
+          тот или иной период.
+        </p>
       </div>
-      {!birth && <NeedBirth returnTo="why" title="Нужны данные рождения" text="Чтобы сравнить нынешнее небо с вашей картой, нужны дата, время и город рождения." />}
+      {!birth && (
+        <NeedBirth returnTo="why" title="Нужны данные рождения" text="Чтобы сравнить нынешнее небо с вашей картой, нужны дата, время и город рождения." />
+      )}
       {status === 'error' && <p className={ui.error}>Не получилось посчитать транзиты. Откройте экран ещё раз.</p>}
       {why && (
         <>
@@ -63,7 +70,15 @@ export const Why = () => {
               </button>
             </div>
           )}
-          <Reading kind="why" />
+          {allowed ? (
+            <Reading kind="why" />
+          ) : (
+            <Paywall
+              title="Что это значит для вас"
+              text="Подробный разбор: как эти влияния проявятся в отношениях, работе, деньгах и состоянии, и что с этим делать."
+              topics={['Отношения', 'Работа', 'Деньги', 'Состояние']}
+            />
+          )}
         </>
       )}
     </section>

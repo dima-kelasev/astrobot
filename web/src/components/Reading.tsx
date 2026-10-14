@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cx } from '../lib/cx';
+import { LimitNote } from './LimitNote';
 import { useAppSelector } from '../store/hooks';
 import type { ReadingKind } from '../store/readingsSlice';
 import ui from '../styles/ui.module.css';
@@ -44,11 +45,14 @@ const renderText = (text: string) =>
 
 const noteText = (code: string | null) => (code ? (NOTES[code] ?? BRIEF) : null);
 
-type Props = { kind: ReadingKind; action?: ReactNode };
+type Props = { kind: ReadingKind; action?: ReactNode; locked?: ReactNode };
 
-export const Reading = ({ kind, action }: Props) => {
+const PAYWALL = new Set(['premium', 'limit', 'natal']);
+
+export const Reading = ({ kind, action, locked }: Props) => {
   const reading = useAppSelector((state) => state.readings[kind]);
   if (reading.status === 'idle') return null;
+  if (reading.status === 'error' && reading.note && PAYWALL.has(reading.note)) return <LimitNote code={reading.note} />;
   const waiting = reading.status === 'loading';
   const label = waiting
     ? 'Смотрю на звёзды'
@@ -60,17 +64,21 @@ export const Reading = ({ kind, action }: Props) => {
           ? 'Краткое толкование'
           : 'Ваше толкование';
   const note = noteText(reading.note);
+  const isLocked = reading.locked && reading.status === 'done';
   return (
-    <div className={cx(ui.glass, styles.reading)} aria-live="polite">
-      <div className={styles.head}>
-        <span className={styles.status}>
-          <span className={cx(styles.dot, (waiting || reading.status === 'streaming') && styles.busy, reading.source === 'ai' && styles.ai)} />
-          {label}
-        </span>
-        {reading.status === 'done' && action}
+    <>
+      <div className={cx(ui.glass, styles.reading)} aria-live="polite">
+        <div className={styles.head}>
+          <span className={styles.status}>
+            <span className={cx(styles.dot, (waiting || reading.status === 'streaming') && styles.busy, reading.source === 'ai' && styles.ai)} />
+            {label}
+          </span>
+          {reading.status === 'done' && action}
+        </div>
+        {reading.text && <div className={cx(styles.text, isLocked && styles.faded)}>{renderText(reading.text)}</div>}
+        {note && <p className={ui.hint}>{note}</p>}
       </div>
-      {reading.text && <div className={styles.text}>{renderText(reading.text)}</div>}
-      {note && <p className={ui.hint}>{note}</p>}
-    </div>
+      {isLocked && locked}
+    </>
   );
 };
