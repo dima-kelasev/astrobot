@@ -60,6 +60,19 @@
   background: color-mix(in srgb, var(--surface-hi) 60%, transparent);
 }
 
+.old {
+  margin-right: 6px;
+  font-weight: 400;
+  opacity: 0.65;
+}
+
+.discount {
+  align-self: center;
+  font-size: 13px;
+  color: var(--gold);
+  text-align: center;
+}
+
 .actions {
   display: flex;
   flex-direction: column;

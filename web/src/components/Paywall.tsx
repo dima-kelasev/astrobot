@@ -22,6 +22,7 @@ export const Paywall = ({ title, text, topics, product, partnerId, partnerName, 
   const payments = useAppSelector((state) => state.profile.me?.access.payments ?? false);
   const plans = useAppSelector((state) => state.payment.plans);
   const plansStatus = useAppSelector((state) => state.payment.plansStatus);
+  const discount = useAppSelector((state) => state.profile.me?.access.discount ?? null);
 
   useEffect(() => {
     if (payments && plansStatus === 'idle') void dispatch(fetchPlans());
@@ -58,12 +59,18 @@ export const Paywall = ({ title, text, topics, product, partnerId, partnerName, 
             type="button"
             onClick={() => dispatch(openPay({ product, partnerId: partnerId ?? null, partnerName: partnerName ?? null }))}
           >
-            Открыть за {single.price} ₽
+            Открыть за {single.full !== single.price && <s className={styles.old}>{single.full} ₽</s>}
+            {single.price} ₽
           </button>
         )}
         <button className={cx(ui.btn, product ? ui.btnGhost : ui.btnPrimary, ui.btnWide)} type="button" onClick={() => dispatch(go('plan'))}>
           {perMonth ? `Подписка на всё — от ${perMonth} ₽ в месяц` : 'Подписка на всё'}
         </button>
+        {discount && (
+          <span className={styles.discount}>
+            Цены со скидкой {discount.percent}% по промокоду {discount.code}
+          </span>
+        )}
       </div>
     </div>
   );
