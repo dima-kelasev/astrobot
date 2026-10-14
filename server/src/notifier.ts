@@ -1,6 +1,6 @@
 import type { SendResult } from './bot.js';
 import { disableNotifications, getBroadcast, markNotified, recentBroadcasts, saveBroadcast, usersToNotify, type Slot, type User } from './db.js';
-import { env, llmReady } from './env.js';
+import { env, fastModel, llmReady } from './env.js';
 import { completeText } from './llm.js';
 import { broadcastPrompt } from './prompts.js';
 import { dateFull, dayKey, hourIn } from './time.js';
@@ -49,7 +49,11 @@ const generate = async (slot: Slot, day: string) => {
   if (!llmReady) return null;
   try {
     const text = clean(
-      await completeText(broadcastPrompt(slot, dateFull(day, env.APP_TZ), recentBroadcasts(slot, 7)), { maxTokens: 120, temperature: 1 }, 30000)
+      await completeText(
+        broadcastPrompt(slot, dateFull(day, env.APP_TZ), recentBroadcasts(slot, 7)),
+        { maxTokens: 120, temperature: 1, model: fastModel },
+        30000
+      )
     );
     if (text.length < 15 || text.length > 160 || BANNED.test(text)) return null;
     return text;

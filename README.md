@@ -30,7 +30,8 @@ npm run dev
 ```
 LLM_BASE_URL=https://api.deepseek.com
 LLM_API_KEY=ваш ключ
-LLM_MODEL=deepseek-flash
+LLM_MODEL=deepseek-v4-pro
+LLM_MODEL_FAST=deepseek-flash
 ```
 
 `LLM_BASE_URL` — адрес до `/chat/completions`. Ключ остаётся на сервере и в браузер не попадает.
@@ -75,7 +76,8 @@ npm start
 | `SITE_URL` | Адрес сайта для поисковиков. Если не задан, берётся из `WEBAPP_URL` |
 | `METRIKA_ID` | Номер счётчика Яндекс Метрики для сайта, необязательно |
 | `TELEGRAM_PROXY` | Прокси для запросов бота к Telegram, например `socks5h://127.0.0.1:11080` или `http://адрес:порт`. Необязательно |
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Сервис нейросети |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Сервис нейросети и основная модель |
+| `LLM_MODEL_FAST` | Дешёвая модель для гороскопа и рассылки. Если пусто, берётся `LLM_MODEL` |
 | `LLM_EXTRA` | Дополнительные параметры запроса к нейросети в виде JSON, необязательно |
 | `PORT`, `HOST` | Где слушает сервер |
 | `APP_TZ` | Часовой пояс, по которому считается «сегодня» |

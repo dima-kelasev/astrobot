@@ -13,6 +13,7 @@ const schema = z.object({
   LLM_BASE_URL: z.string().default(''),
   LLM_API_KEY: z.string().default(''),
   LLM_MODEL: z.string().default(''),
+  LLM_MODEL_FAST: z.string().default(''),
   LLM_EXTRA: z.string().default(''),
   PORT: z.coerce.number().int().default(3000),
   HOST: z.string().default('127.0.0.1'),
@@ -36,6 +37,8 @@ const filled = Object.fromEntries(Object.entries(process.env).filter(([, value])
 export const env = schema.parse(filled);
 export const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
 export const siteDist = fileURLToPath(new URL('../../site/out', import.meta.url));
+export const fastModel = env.LLM_MODEL_FAST || env.LLM_MODEL;
+
 export const llmReady = Boolean(env.LLM_BASE_URL && env.LLM_API_KEY && env.LLM_MODEL);
 
 const originOf = (url: string) => {

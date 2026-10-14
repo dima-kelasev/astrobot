@@ -33,7 +33,7 @@ const codeFor = (status: number) => {
   return 'upstream_error';
 };
 
-export type CompletionOptions = { maxTokens?: number; temperature?: number };
+export type CompletionOptions = { maxTokens?: number; temperature?: number; model?: string };
 
 export const streamCompletion = async (prompt: string, onDelta: (delta: string) => void, signal: AbortSignal, options: CompletionOptions = {}) => {
   if (!llmReady) throw new LlmError('no_key');
@@ -44,7 +44,7 @@ export const streamCompletion = async (prompt: string, onDelta: (delta: string) 
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.LLM_API_KEY}` },
       body: JSON.stringify({
-        model: env.LLM_MODEL,
+        model: options.model || env.LLM_MODEL,
         stream: true,
         max_tokens: options.maxTokens ?? 900,
         temperature: options.temperature ?? 0.9,

@@ -33,7 +33,7 @@ import {
   type ReadingKind,
   type User
 } from './db.js';
-import { env, llmReady, privacyUrl, siteDist, webDist } from './env.js';
+import { env, fastModel, llmReady, privacyUrl, siteDist, webDist } from './env.js';
 import { placeById, searchCities, type Place } from './geo.js';
 import { LlmError, completeText, streamCompletion } from './llm.js';
 import {
@@ -241,6 +241,7 @@ type ReadingJob = {
   fallback: string;
   refresh: boolean;
   maxTokens: number;
+  model?: string;
 };
 
 const sendReading = async (reply: FastifyReply, job: ReadingJob) => {
@@ -275,7 +276,7 @@ const sendReading = async (reply: FastifyReply, job: ReadingJob) => {
         send({ delta });
       },
       ctl.signal,
-      { maxTokens: job.maxTokens }
+      { maxTokens: job.maxTokens, model: job.model }
     );
     saveReading(job.user.id, job.kind, job.key, text);
     finish('ai', null);
@@ -482,7 +483,8 @@ export const createApp = async () => {
       }),
       fallback: `Луна в ${sky.moonSign.prepositional}: на первом плане ${sky.moonSign.theme}.\n\n${sky.phaseTip}`,
       refresh: query.success && query.data.refresh === '1',
-      maxTokens: 700
+      maxTokens: 700,
+      model: fastModel
     });
   });
 
