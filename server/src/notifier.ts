@@ -1,4 +1,3 @@
-import { daySky } from './astro.js';
 import type { SendResult } from './bot.js';
 import { disableNotifications, getBroadcast, markNotified, recentBroadcasts, saveBroadcast, usersToNotify, type Slot, type User } from './db.js';
 import { env, llmReady } from './env.js';
@@ -14,7 +13,7 @@ const FALLBACK: Record<Slot, string[]> = {
     'Новый день, новая карта. Посмотрите, на что она советует обратить внимание.',
     'Утро хорошо начинать с ясности. Гороскоп на сегодня ждёт вас.',
     'Карта дня выбрана. Пара минут, чтобы понять настроение дня.',
-    'Луна сменила положение. Посмотрите, что это значит для вашего дня.',
+    'Загляните в гороскоп и карту дня, если хотите начать день с опоры на небо.',
     'Ваш гороскоп на сегодня собран по положению Луны и планет.',
     'Перед делами загляните в карту дня: она подскажет, где быть внимательнее.'
   ],
@@ -25,7 +24,8 @@ const FALLBACK: Record<Slot, string[]> = {
     'Тихий вечер хорош для расклада. Задайте вопрос, который давно откладывали.',
     'Перед сном можно разложить карты на то, что сейчас важно.',
     'Вечером мысли спокойнее. Хорошее время спросить карты о том, что волнует.',
-    'Расклады по темам ждут: отношения, работа, трудный выбор.'
+    'Расклады по темам ждут: отношения, работа, трудный выбор.',
+    'Вечером можно сделать расклад таро и спокойно обдумать то, что вас волнует.'
   ]
 };
 
@@ -35,7 +35,7 @@ const pickFallback = (slot: Slot, day: string) => {
   return list[seed];
 };
 
-const BANNED = /(последний шанс|успейте|только сегодня|срочно)/i;
+const BANNED = /(последний шанс|успейте|только сегодня|срочно|%|освещ|градус|луна в |растущ|убывающ|полнолун|новолун)/i;
 
 const clean = (text: string) =>
   text
@@ -48,8 +48,9 @@ const clean = (text: string) =>
 const generate = async (slot: Slot, day: string) => {
   if (!llmReady) return null;
   try {
-    const sky = daySky(day, env.APP_TZ);
-    const text = clean(await completeText(broadcastPrompt(slot, dateFull(day, env.APP_TZ), sky.moonLine, recentBroadcasts(slot, 7)), { maxTokens: 120, temperature: 1 }, 30000));
+    const text = clean(
+      await completeText(broadcastPrompt(slot, dateFull(day, env.APP_TZ), recentBroadcasts(slot, 7)), { maxTokens: 120, temperature: 1 }, 30000)
+    );
     if (text.length < 15 || text.length > 160 || BANNED.test(text)) return null;
     return text;
   } catch (error) {
