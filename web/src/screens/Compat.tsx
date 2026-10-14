@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { BirthForm } from '../components/BirthForm';
+import { FreeLeft } from '../components/FreeLeft';
 import { LimitNote } from '../components/LimitNote';
 import { NeedBirth } from '../components/NeedBirth';
+import { Paywall } from '../components/Paywall';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
 import { openPartner } from '../store/navSlice';
@@ -26,9 +28,9 @@ export const Compat = () => {
   }, [hasBirth, dispatch, store]);
 
   if (!me) return null;
-  const limit = me.limits.partner;
   const showForm = formOpen || (status === 'ready' && list.length === 0);
-  const blocked = addError === 'limit' || addError === 'premium';
+  const blocked = addError === 'limit' || addError === 'premium' || addError === 'partner';
+  const exhausted = me.access.payments && !me.access.subscribed && me.limits.partner.used >= me.limits.partner.max;
 
   return (
     <section className={ui.screen}>
@@ -54,7 +56,13 @@ export const Compat = () => {
           ))}
         </div>
       )}
-      {hasBirth && !showForm && (
+      {hasBirth && exhausted && !showForm && (
+        <Paywall
+          title="Совместимость с другими людьми"
+          text="Бесплатно можно посчитать совместимость с одним человеком. С подпиской — с кем угодно, без ограничений."
+        />
+      )}
+      {hasBirth && !showForm && !exhausted && (
         <button className={cx(ui.btn, ui.btnPrimary, ui.btnWide)} type="button" onClick={() => setFormOpen(true)}>
           Добавить человека
         </button>
@@ -71,11 +79,13 @@ export const Compat = () => {
             submitLabel="Посчитать совместимость"
             onSubmit={(value) => dispatch(addPartner(value))}
           />
-          <p className={ui.hint}>Достаточно даты. Время и город сделают расчёт точнее. Данные этого человека видите только вы, удалить их можно в любой момент.</p>
+          <p className={ui.hint}>
+            Достаточно даты. Время и город сделают расчёт точнее. Данные этого человека видите только вы, удалить их можно в любой момент.
+          </p>
         </>
       )}
       {blocked && addError && <LimitNote code={addError} />}
-      {hasBirth && <p className={cx(ui.hint, ui.center)}>Сегодня бесплатно: {Math.max(0, limit.max - limit.used)} из {limit.max}</p>}
+      {hasBirth && <FreeLeft feature="partner" />}
     </section>
   );
 };

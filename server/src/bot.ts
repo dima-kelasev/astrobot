@@ -181,6 +181,19 @@ export const runBot = (bot: Telegraf) => {
   };
 };
 
+export const sendPersonal = async (bot: Telegraf, userId: number, text: string, screen: 'why' | 'plan'): Promise<SendResult> => {
+  const label = screen === 'plan' ? 'Продлить подписку' : 'Открыть разбор';
+  try {
+    if (hasWebApp) await bot.telegram.sendMessage(userId, text, Markup.inlineKeyboard([Markup.button.webApp(label, appUrl(screen))]));
+    else await bot.telegram.sendMessage(userId, text);
+    return 'sent';
+  } catch (error) {
+    if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) return 'blocked';
+    console.error(`Не удалось отправить личное уведомление ${userId}:`, error);
+    return 'failed';
+  }
+};
+
 export const sendNotification = async (bot: Telegraf, user: User, slot: Slot, text: string): Promise<SendResult> => {
   try {
     if (hasWebApp) await bot.telegram.sendMessage(user.id, text, slotKeyboard(slot));

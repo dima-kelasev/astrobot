@@ -425,6 +425,42 @@ export const yearLines = (chart: Chart, now: Date) => {
   return { transits, houses };
 };
 
+const dayText = (date: Date) => {
+  const [, month, day] = dayKeyIn(date).split('-').map(Number);
+  return `${day} ${MONTHS_FROM[month - 1]}`;
+};
+
+export type PersonalAlert = { key: string; weight: number; facts: string; fallback: string };
+
+const DAY_MS = 86400000;
+
+export const personalAlerts = (chart: Chart, now: Date): PersonalAlert[] => {
+  const horizon = now.getTime() + 3 * DAY_MS;
+  const windows = yearTransits(chart, new Date(now.getTime() - 60 * DAY_MS), 64)
+    .filter((window) => window.start.getTime() >= now.getTime() - DAY_MS / 2 && window.start.getTime() <= horizon)
+    .map((window) => {
+      const weight = (YEAR_WEIGHT[window.target] ?? 1) * (MOVER_WEIGHT[window.mover] ?? 1);
+      const house = window.natalHouse ? ` (это ваш ${window.natalHouse} дом: ${HOUSES[window.natalHouse - 1]})` : '';
+      const line = `транзитный ${POINT_NAMES[window.mover]} ${IN_ASPECT[window.aspect]} ${YOUR_WITH[window.target]}${house}`;
+      const period = `с ${dayText(window.start)} до ${monthText(window.end)}, точнее всего ${monthText(window.exact)}`;
+      return {
+        key: `tr:${window.mover}:${window.target}:${window.aspect}:${dayKeyIn(window.start).slice(0, 4)}`,
+        weight,
+        facts: `${capital(line)}, ${period}. Значение аспекта: ${aspectNature(window.aspect)}.`,
+        fallback: `С ${dayText(window.start)} ${line}. По астрологической традиции это время, когда аспект ${aspectNature(window.aspect)}. Подробнее в разделе «Почему сейчас так?».`
+      };
+    });
+  const ingresses = yearIngresses(chart, new Date(now.getTime() - DAY_MS / 2), 3.5).flatMap((item) =>
+    item.changes.map((change) => ({
+      key: `in:${item.mover}:${change.house}:${dayKeyIn(change.date).slice(0, 4)}`,
+      weight: item.mover === 'saturn' ? 7 : 6,
+      facts: `С ${dayText(change.date)} ${POINT_NAMES[item.mover]} переходит в ваш ${houseText(change.house)} и пробудет там долго.`,
+      fallback: `С ${dayText(change.date)} ${POINT_NAMES[item.mover]} переходит в ваш ${houseText(change.house)}. По традиции эта сфера жизни выходит на первый план на ближайшие месяцы.`
+    }))
+  );
+  return [...windows, ...ingresses].sort((a, b) => b.weight - a.weight);
+};
+
 export const retroNames = (chart: Chart) => chart.points.filter((point) => point.retro && point.key !== 'node').map((point) => point.name);
 
 export const keyAspects = (chart: Chart, limit: number) =>

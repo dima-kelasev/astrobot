@@ -1,3 +1,4 @@
+import { SubReminder } from '../components/SubStatus';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { askBirth, go, type Screen } from '../store/navSlice';
@@ -58,6 +59,7 @@ export const Home = () => {
         </span>
         <h1 className={ui.title}>Чем помочь сегодня?</h1>
       </div>
+      <SubReminder />
       <div className={styles.grid}>
         <button className={cx(ui.glass, styles.tile, styles.hero, styles.heroNatal)} type="button" onClick={() => open('natal', true)}>
           <Wheel />

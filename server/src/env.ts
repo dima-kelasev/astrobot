@@ -19,7 +19,7 @@ const schema = z.object({
   HOST: z.string().default('127.0.0.1'),
   DB_PATH: z.string().default(fileURLToPath(new URL('../../data/astrobot.db', import.meta.url))),
   APP_TZ: z.string().default('Europe/Moscow'),
-  LIMIT_SPREADS: z.coerce.number().int().min(0).default(1),
+  LIMIT_SPREADS: z.coerce.number().int().min(0).default(3),
   LIMIT_QUESTIONS: z.coerce.number().int().min(0).default(3),
   LIMIT_PARTNERS: z.coerce.number().int().min(0).default(3),
   PAYMENTS_ENABLED: z
@@ -40,6 +40,8 @@ const schema = z.object({
   YOOKASSA_VAT_CODE: z.coerce.number().int().min(1).max(12).default(1),
   PAYMENT_RETURN_URL: z.string().default(''),
   FREE_QUESTIONS: z.coerce.number().int().min(0).default(1),
+  FREE_SPREADS: z.coerce.number().int().min(0).default(1),
+  FREE_PARTNERS: z.coerce.number().int().min(0).default(1),
   DEV_USER_ID: z.coerce.number().int().positive().optional()
 });
 

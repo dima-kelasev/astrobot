@@ -96,6 +96,12 @@ db.exec(`
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS grants_user ON grants (user_id, kind);
+  CREATE TABLE IF NOT EXISTS alerts (
+    user_id INTEGER NOT NULL,
+    key TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, key)
+  );
   CREATE TABLE IF NOT EXISTS broadcasts (
     day TEXT NOT NULL,
     slot TEXT NOT NULL,
@@ -560,6 +566,29 @@ export const usersToNotify = (slot: Slot, day: string) => {
     .all(day)
     .map(toUser)
     .filter((user) => user !== null);
+};
+
+const subscriberRow = z.object({ user_id: z.number(), until: z.string() });
+
+export const activeSubscribers = () =>
+  db
+    .prepare("SELECT user_id, MAX(until) AS until FROM grants WHERE kind = 'sub' GROUP BY user_id HAVING MAX(until) > ?")
+    .all(now())
+    .map((row) => subscriberRow.parse(row))
+    .map((row) => ({ user: getUser(row.user_id), until: row.until }))
+    .filter((row): row is { user: User; until: string } => row.user !== null);
+
+export const alertSent = (userId: number, key: string) => db.prepare('SELECT 1 AS n FROM alerts WHERE user_id = ? AND key = ?').get(userId, key) !== undefined;
+
+const lastAlertRow = z.object({ sent_at: z.string().nullable() });
+
+export const lastAlertAt = (userId: number, prefix: string) => {
+  const row = db.prepare('SELECT MAX(sent_at) AS sent_at FROM alerts WHERE user_id = ? AND key LIKE ?').get(userId, `${prefix}%`);
+  return row === undefined ? null : lastAlertRow.parse(row).sent_at;
+};
+
+export const markAlert = (userId: number, key: string) => {
+  db.prepare('INSERT OR IGNORE INTO alerts (user_id, key, sent_at) VALUES (?, ?, ?)').run(userId, key, now());
 };
 
 export const markNotified = (id: number, slot: Slot, day: string) => {

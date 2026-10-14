@@ -1,8 +1,22 @@
 import type { SendResult } from './bot.js';
-import { disableNotifications, getBroadcast, markNotified, recentBroadcasts, saveBroadcast, usersToNotify, type Slot, type User } from './db.js';
+import {
+  activeSubscribers,
+  alertSent,
+  disableNotifications,
+  getBroadcast,
+  lastAlertAt,
+  markAlert,
+  markNotified,
+  recentBroadcasts,
+  saveBroadcast,
+  usersToNotify,
+  type Slot,
+  type User
+} from './db.js';
 import { env, fastModel, llmReady } from './env.js';
 import { completeText } from './llm.js';
-import { broadcastPrompt } from './prompts.js';
+import { chartOf, personalAlerts } from './natal.js';
+import { alertPrompt, broadcastPrompt } from './prompts.js';
 import { dateFull, dayKey, hourIn } from './time.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,6 +121,93 @@ export const startNotifier = (send: Sender) => {
       await notifyOnce(send);
     } catch (error) {
       console.error('Ошибка рассылки:', error);
+    } finally {
+      running = false;
+    }
+  };
+  const timer = setInterval(() => void tick(), 60 * 1000);
+  void tick();
+  return () => clearInterval(timer);
+};
+
+export type PersonalSender = (userId: number, text: string, screen: 'why' | 'plan') => Promise<SendResult>;
+
+const DAY_MS = 86400000;
+const ALERT_GAP_MS = 3 * DAY_MS;
+const REPEAT_MS = 300 * DAY_MS;
+
+const dateText = (iso: string) => new Intl.DateTimeFormat('ru-RU', { timeZone: env.APP_TZ, day: 'numeric', month: 'long' }).format(new Date(iso));
+
+const writeAlert = async (facts: string, fallback: string) => {
+  if (!llmReady) return fallback;
+  try {
+    const text = clean(await completeText(alertPrompt(facts), { maxTokens: 220, temperature: 0.8, model: fastModel }, 30000));
+    return text.length >= 40 && text.length <= 400 && !BANNED.test(text) ? text : fallback;
+  } catch (error) {
+    console.error('Не удалось написать личное уведомление:', error);
+    return fallback;
+  }
+};
+
+const expiryAlert = (until: string, now: Date) => {
+  const left = new Date(until).getTime() - now.getTime();
+  if (left <= 0) return null;
+  if (left <= 1.5 * DAY_MS)
+    return {
+      key: `exp1:${until}`,
+      text: `Подписка заканчивается ${dateText(until)}. Чтобы натальная карта, вопросы и расклады оставались открыты, продлите её заранее: новые дни прибавятся к текущему сроку.`
+    };
+  if (left <= 3.5 * DAY_MS)
+    return {
+      key: `exp3:${until}`,
+      text: `Через несколько дней, ${dateText(until)}, заканчивается подписка. Продлить можно уже сейчас: дни прибавятся к текущему сроку, ничего не потеряется.`
+    };
+  return null;
+};
+
+export const personalOnce = async (send: PersonalSender, now: Date = new Date()) => {
+  let sent = 0;
+  for (const { user, until } of activeSubscribers()) {
+    const expiry = expiryAlert(until, now);
+    if (expiry && !alertSent(user.id, expiry.key)) {
+      const result = await send(user.id, expiry.text, 'plan');
+      if (result !== 'failed') markAlert(user.id, expiry.key);
+      if (result === 'sent') sent += 1;
+      await sleep(40);
+    }
+    if (!user.notifyMorning || !user.birthDate) continue;
+    const recent = [lastAlertAt(user.id, 'tr:'), lastAlertAt(user.id, 'in:')].filter((value): value is string => value !== null);
+    if (recent.some((value) => now.getTime() - new Date(value).getTime() < ALERT_GAP_MS)) continue;
+    const fresh = (key: string) => {
+      const previous = lastAlertAt(user.id, key.slice(0, key.lastIndexOf(':') + 1));
+      return !alertSent(user.id, key) && (!previous || now.getTime() - new Date(previous).getTime() > REPEAT_MS);
+    };
+    const alert = personalAlerts(chartOf({ date: user.birthDate, time: user.birthTime, place: user.place }), now).find((item) => fresh(item.key));
+    if (!alert) continue;
+    const text = await writeAlert(alert.facts, alert.fallback);
+    const result = await send(user.id, text, 'why');
+    if (result !== 'failed') markAlert(user.id, alert.key);
+    if (result === 'sent') sent += 1;
+    await sleep(40);
+  }
+  return sent;
+};
+
+const PERSONAL_HOUR = (env.NOTIFY_HOUR + 2) % 24;
+
+export const startPersonal = (send: PersonalSender) => {
+  let running = false;
+  let lastDay = '';
+  const tick = async () => {
+    const now = new Date();
+    const day = dayKey(env.APP_TZ, now);
+    if (running || day === lastDay || hourIn(env.APP_TZ, now) !== PERSONAL_HOUR) return;
+    running = true;
+    try {
+      await personalOnce(send, now);
+      lastDay = day;
+    } catch (error) {
+      console.error('Ошибка личных уведомлений:', error);
     } finally {
       running = false;
     }

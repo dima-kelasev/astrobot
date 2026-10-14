@@ -35,14 +35,21 @@ body,
 
 body {
   margin: 0;
-  background:
-    radial-gradient(120% 60% at 50% 34%, var(--nebula) 0%, transparent 64%) fixed,
-    var(--bg);
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(120% 60% at 50% 34%, var(--nebula) 0%, transparent 64%);
 }
 
 h1,

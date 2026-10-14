@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { FreeLeft } from '../components/FreeLeft';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
 import { openTheme } from '../store/navSlice';
@@ -10,7 +11,6 @@ export const Topics = () => {
   const store = useAppStore();
   const themes = useAppSelector((state) => state.spread.themes);
   const status = useAppSelector((state) => state.spread.themesStatus);
-  const limit = useAppSelector((state) => state.profile.me?.limits.spread ?? null);
 
   useEffect(() => {
     if (store.getState().spread.themesStatus === 'ready') return;
@@ -39,7 +39,7 @@ export const Topics = () => {
           </button>
         ))}
       </div>
-      {limit && <p className={cx(ui.hint, ui.center)}>Сегодня бесплатно: {Math.max(0, limit.max - limit.used)} из {limit.max}</p>}
+      <FreeLeft feature="spread" />
     </section>
   );
 };

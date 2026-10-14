@@ -168,11 +168,15 @@ const hasWhy = (user: User) => !paymentsOn() || isSubscribed(user);
 
 const freeQuestionsLeft = (user: User) => Math.max(0, env.FREE_QUESTIONS - totalUsage(user.id, 'question'));
 
+const FREE: Record<Feature, number> = { spread: env.FREE_SPREADS, question: env.FREE_QUESTIONS, partner: env.FREE_PARTNERS };
+
+const PAYWALL_CODE: Record<Feature, string> = { spread: 'limit', question: 'premium', partner: 'partner' };
+
 const consume = (user: User, feature: Feature) => {
-  if (paymentsOn() && isSubscribed(user)) return;
   const day = today();
-  if (paymentsOn() && feature === 'question') {
-    if (freeQuestionsLeft(user) <= 0) throw new HttpError(402, 'premium');
+  if (paymentsOn()) {
+    if (isSubscribed(user)) return;
+    if (totalUsage(user.id, feature) >= FREE[feature]) throw new HttpError(402, PAYWALL_CODE[feature]);
   } else if (usageOf(user.id, day, feature) >= LIMITS[feature]) {
     throw new HttpError(402, 'limit');
   }
@@ -181,6 +185,7 @@ const consume = (user: User, feature: Feature) => {
 
 const limitsOf = (user: User) => {
   const day = today();
+  if (paymentsOn()) return Object.fromEntries(FEATURES.map((feature) => [feature, { used: totalUsage(user.id, feature), max: FREE[feature] }]));
   return Object.fromEntries(FEATURES.map((feature) => [feature, { used: usageOf(user.id, day, feature), max: LIMITS[feature] }]));
 };
 

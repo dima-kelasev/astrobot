@@ -1,0 +1,62 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+}
+
+.active {
+  border-color: color-mix(in srgb, var(--gold) 50%, var(--line));
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--gold) 12%, transparent), transparent 55%), color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+.soon {
+  border-color: var(--gold);
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.active .title {
+  color: var(--gold);
+}
+
+.text {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+  border-color: var(--gold);
+}
+
+.reminder .title {
+  color: var(--gold);
+  font-size: 15px;
+}
+
+.reminder .text {
+  margin-bottom: 0;
+}

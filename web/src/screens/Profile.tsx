@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SubStatus } from '../components/SubStatus';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { go } from '../store/navSlice';
@@ -24,6 +25,7 @@ export const Profile = () => {
         <span className={ui.eyebrow}>Профиль</span>
         <h1 className={ui.title}>{me.sign ? `${me.sign}${me.ascSign ? `, асцендент в знаке ${me.ascSign}` : ''}` : me.firstName || 'Профиль'}</h1>
       </div>
+      <SubStatus />
       <div className={cx(ui.glass, ui.field)}>
         <span className={ui.label}>Данные рождения</span>
         {birth ? (
@@ -44,7 +46,7 @@ export const Profile = () => {
       <label className={cx(ui.glass, ui.field, ui.switchRow)} htmlFor="notifyMorning">
         <span className={ui.switchText}>
           <span className={ui.label}>Утреннее сообщение</span>
-          <span className={ui.hint}>Гороскоп и карта дня каждое утро.</span>
+          <span className={ui.hint}>Гороскоп и карта дня каждое утро. С подпиской сюда же приходят личные уведомления о важных периодах.</span>
         </span>
         <input
           className={ui.switch}

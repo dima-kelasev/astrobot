@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { FreeLeft } from '../components/FreeLeft';
 import { LimitNote } from '../components/LimitNote';
 import { Reading } from '../components/Reading';
 import { TarotCard } from '../components/TarotCard';
@@ -78,7 +79,6 @@ const Ask = () => {
   const errorCode = useAppSelector((state) => state.spread.errorCode);
   const themeKey = useAppSelector((state) => state.spread.theme);
   const theme = useAppSelector((state) => state.spread.themes.find((item) => item.key === state.spread.theme) ?? null);
-  const limit = useAppSelector((state) => state.profile.me?.limits.spread ?? null);
   const [empty, setEmpty] = useState(false);
 
   const start = () => {
@@ -91,8 +91,11 @@ const Ask = () => {
     dispatch(startSpread());
   };
 
-  const left = limit ? Math.max(0, limit.max - limit.used) : null;
   const blocked = errorCode === 'limit' || errorCode === 'premium';
+  const exhausted = useAppSelector((state) => {
+    const me = state.profile.me;
+    return Boolean(me && me.access.payments && !me.access.subscribed && me.limits.spread.used >= me.limits.spread.max);
+  });
 
   return (
     <div className={ui.screen}>
@@ -146,11 +149,15 @@ const Ask = () => {
       )}
       {empty && <p className={ui.error}>Напишите вопрос или выберите пример.</p>}
       {errorCode && !blocked && <p className={ui.error}>Не получилось начать расклад. Попробуйте ещё раз.</p>}
-      <button className={cx(ui.btn, ui.btnPrimary, ui.btnWide)} type="button" disabled={starting || !theme} onClick={start}>
-        Перемешать и разложить
-      </button>
-      {left !== null && limit && <p className={cx(ui.hint, styles.center)}>Сегодня бесплатно: {left} из {limit.max}</p>}
-      {blocked && errorCode && <LimitNote code={errorCode} />}
+      {exhausted ? (
+        <LimitNote code="limit" />
+      ) : (
+        <button className={cx(ui.btn, ui.btnPrimary, ui.btnWide)} type="button" disabled={starting || !theme} onClick={start}>
+          Перемешать и разложить
+        </button>
+      )}
+      {!exhausted && <FreeLeft feature="spread" />}
+      {!exhausted && blocked && errorCode && <LimitNote code={errorCode} />}
     </div>
   );
 };
