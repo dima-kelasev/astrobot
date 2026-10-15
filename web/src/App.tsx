@@ -23,7 +23,7 @@ import { Tarot } from './screens/Tarot';
 import { Topics } from './screens/Topics';
 import { Why } from './screens/Why';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { back, go, isTab, type Screen } from './store/navSlice';
+import { back, go, type Screen } from './store/navSlice';
 import { fetchMe } from './store/profileSlice';
 import ui from './styles/ui.module.css';
 import { telegram } from './telegram';
@@ -77,7 +77,7 @@ export const App = () => {
   const status = useAppSelector((state) => state.profile.status);
   const errorCode = useAppSelector((state) => state.profile.errorCode);
   const screen = useAppSelector((state) => state.nav.screen);
-  const isSub = !isTab(screen);
+  const canBack = screen !== 'home';
   const ready = status === 'ready';
   const Current = SCREENS[screen];
 
@@ -90,8 +90,8 @@ export const App = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    telegram.backButton(isSub);
-  }, [isSub]);
+    telegram.backButton(canBack);
+  }, [canBack]);
 
   useEffect(() => telegram.onBack(() => dispatch(back())), [dispatch]);
 
