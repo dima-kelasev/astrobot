@@ -3,7 +3,7 @@ import { api, codeOf, type BirthInput } from '../api/client';
 import type { Partner, PartnerDetail } from '../api/schemas';
 import { createAppAsyncThunk } from './hooks';
 import { openPartner } from './navSlice';
-import { birthChanged, limitsChanged } from './profileSlice';
+import { birthChanged, fetchMe, limitsChanged } from './profileSlice';
 
 type PartnersState = {
   status: 'idle' | 'loading' | 'ready' | 'error';
@@ -29,6 +29,7 @@ export const addPartner = createAppAsyncThunk('partners/add', async (body: Birth
   try {
     const result = await api.addPartner(body);
     dispatch(limitsChanged(result.limits));
+    await dispatch(fetchMe());
     dispatch(openPartner(result.partner.id));
     return result.partner;
   } catch (error) {

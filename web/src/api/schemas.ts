@@ -11,7 +11,7 @@ export const cardSchema = z.object({
 
 const limitSchema = z.object({ used: z.number(), max: z.number() });
 
-export const limitsSchema = z.object({ spread: limitSchema, question: limitSchema, partner: limitSchema });
+export const limitsSchema = z.object({ spread: limitSchema, question: limitSchema, partner: limitSchema, why: limitSchema.default({ used: 0, max: 0 }) });
 
 const placeSchema = z.object({ name: z.string(), label: z.string() });
 

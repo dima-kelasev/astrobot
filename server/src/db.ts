@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -116,6 +117,12 @@ db.exec(`
     payment_id TEXT,
     created_at TEXT NOT NULL,
     PRIMARY KEY (code, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS used_free (
+    hash TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    n INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (hash, feature)
   );
   CREATE TABLE IF NOT EXISTS broadcasts (
     day TEXT NOT NULL,
@@ -353,7 +360,51 @@ export const setNotifications = (id: number, patch: { morning?: boolean; evening
   if (patch.evening !== undefined) db.prepare('UPDATE users SET notify_evening = ? WHERE id = ?').run(patch.evening ? 1 : 0, id);
 };
 
+const usageHash = (id: number) =>
+  createHmac('sha256', env.BOT_TOKEN || 'astrobot')
+    .update(String(id))
+    .digest('hex');
+
+const usedRow = z.object({ feature: z.string(), n: z.number() });
+
+const keepUsedFree = (id: number) => {
+  const hash = usageHash(id);
+  const rows = db
+    .prepare('SELECT feature, SUM(n) AS n FROM usage WHERE user_id = ? GROUP BY feature')
+    .all(id)
+    .map((row) => usedRow.parse(row));
+  for (const row of rows) {
+    db.prepare('INSERT INTO used_free (hash, feature, n) VALUES (?, ?, ?) ON CONFLICT (hash, feature) DO UPDATE SET n = used_free.n + excluded.n').run(
+      hash,
+      row.feature,
+      row.n
+    );
+  }
+};
+
+const usedBefore = (id: number, feature: string) => {
+  const row = db.prepare('SELECT n FROM used_free WHERE hash = ? AND feature = ?').get(usageHash(id), feature);
+  return row === undefined ? 0 : usedRow.pick({ n: true }).parse(row).n;
+};
+
+export const grantFree = (userId: number, kind: string, ref: string) => {
+  db.prepare('INSERT INTO grants (user_id, kind, ref, until, payment_id, created_at) VALUES (?, ?, ?, NULL, ?, ?)').run(userId, kind, ref, 'free', now());
+};
+
+const grantFirstPartners = () => {
+  db.prepare(
+    `INSERT INTO grants (user_id, kind, ref, until, payment_id, created_at)
+     SELECT p.user_id, 'compat', p.id, NULL, 'free', ?
+     FROM partners p
+     WHERE p.created_at = (SELECT MIN(created_at) FROM partners WHERE user_id = p.user_id)
+       AND NOT EXISTS (SELECT 1 FROM grants g WHERE g.user_id = p.user_id AND g.kind = 'compat' AND g.payment_id = 'free')`
+  ).run(now());
+};
+
+grantFirstPartners();
+
 export const deleteUserData = (id: number) => {
+  keepUsedFree(id);
   for (const table of ['readings', 'spreads', 'questions', 'partners', 'usage', 'day_cards']) {
     db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(id);
   }
@@ -366,7 +417,7 @@ export const setEmail = (id: number, email: string) => {
 
 export const totalUsage = (userId: number, feature: string) => {
   const row = db.prepare('SELECT COALESCE(SUM(n), 0) AS n FROM usage WHERE user_id = ? AND feature = ?').get(userId, feature);
-  return row === undefined ? 0 : countRow.parse(row).n;
+  return (row === undefined ? 0 : countRow.parse(row).n) + usedBefore(userId, feature);
 };
 
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled';

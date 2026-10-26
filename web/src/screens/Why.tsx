@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { FreeBadge } from '../components/FreeBadge';
 import { NeedBirth } from '../components/NeedBirth';
 import { Paywall } from '../components/Paywall';
 import { Reading } from '../components/Reading';
@@ -6,6 +7,7 @@ import { cx } from '../lib/cx';
 import { fetchWhy } from '../store/chartSlice';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
 import { askBirth } from '../store/navSlice';
+import { fetchMe } from '../store/profileSlice';
 import { fetchReading } from '../store/readingsSlice';
 import ui from '../styles/ui.module.css';
 
@@ -30,6 +32,9 @@ export const Why = () => {
     const current = store.getState().readings.why;
     if (current.key === readingKey && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'why', key: readingKey, path: '/api/why/reading' }));
+    void request.then((result) => {
+      if (fetchReading.fulfilled.match(result)) void dispatch(fetchMe());
+    });
     return () => request.abort();
   }, [readingKey, dispatch, store]);
 
@@ -43,6 +48,7 @@ export const Why = () => {
           тот или иной период.
         </p>
       </div>
+      {birth && <FreeBadge feature="why" />}
       {!birth && (
         <NeedBirth returnTo="why" title="Нужны данные рождения" text="Чтобы сравнить нынешнее небо с вашей картой, нужны дата, время и город рождения." />
       )}

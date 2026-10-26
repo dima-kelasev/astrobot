@@ -21,6 +21,7 @@ import {
   getReading,
   getSpread,
   getUser,
+  grantFree,
   grantRefs,
   isDayOpened,
   listPartners,
@@ -167,7 +168,16 @@ const hasNatal = (user: User) => !paymentsOn() || isSubscribed(user) || grantRef
 
 const hasCompat = (user: User, partnerId: string) => !paymentsOn() || isSubscribed(user) || grantRefs(user.id, 'compat').includes(partnerId);
 
-const hasWhy = (user: User) => !paymentsOn() || isSubscribed(user);
+const WHY = 'why';
+
+const whyKeyOf = (user: User) => {
+  const birth = user.birthDate ? { date: user.birthDate, time: user.birthTime, place: user.place } : null;
+  return birth ? `${today()}:${birthKey(birth)}` : null;
+};
+
+const whySeen = (user: User, key: string | null) => key !== null && usageOf(user.id, key, WHY) > 0;
+
+const hasWhy = (user: User) => !paymentsOn() || isSubscribed(user) || whySeen(user, whyKeyOf(user)) || totalUsage(user.id, WHY) < env.FREE_WHY;
 
 const freeQuestionsLeft = (user: User) => Math.max(0, env.FREE_QUESTIONS - totalUsage(user.id, 'question'));
 
@@ -188,8 +198,16 @@ const consume = (user: User, feature: Feature) => {
 
 const limitsOf = (user: User) => {
   const day = today();
-  if (paymentsOn()) return Object.fromEntries(FEATURES.map((feature) => [feature, { used: totalUsage(user.id, feature), max: FREE[feature] }]));
-  return Object.fromEntries(FEATURES.map((feature) => [feature, { used: usageOf(user.id, day, feature), max: LIMITS[feature] }]));
+  if (paymentsOn()) {
+    return {
+      ...Object.fromEntries(FEATURES.map((feature) => [feature, { used: totalUsage(user.id, feature), max: FREE[feature] }])),
+      why: { used: totalUsage(user.id, WHY), max: env.FREE_WHY }
+    };
+  }
+  return {
+    ...Object.fromEntries(FEATURES.map((feature) => [feature, { used: usageOf(user.id, day, feature), max: LIMITS[feature] }])),
+    why: { used: 0, max: 0 }
+  };
 };
 
 const accessOf = (user: User) => ({
@@ -874,16 +892,20 @@ export const createApp = async () => {
 
   app.get('/api/why/reading', async (request, reply) => {
     const user = authUser(request);
-    if (!hasWhy(user)) throw new HttpError(402, 'premium');
     const birth = requireBirth(user);
-    const chart = chartOf(birth);
     const day = today();
+    const whyKey = `${day}:${birthKey(birth)}`;
+    if (paymentsOn() && !isSubscribed(user) && !whySeen(user, whyKey)) {
+      if (totalUsage(user.id, WHY) >= env.FREE_WHY) throw new HttpError(402, 'premium');
+      addUsage(user.id, whyKey, WHY);
+    }
+    const chart = chartOf(birth);
     const why = whyNow(chart, noonToday());
     const transits = why.transits.map(transitLine);
     return sendReading(reply, {
       user,
       kind: 'why',
-      key: `${day}:${birthKey(birth)}`,
+      key: whyKey,
       prompt: whyPrompt({
         date: dateFull(day, env.APP_TZ),
         hasTime: chart.hasTime,
@@ -921,6 +943,7 @@ export const createApp = async () => {
       createdAt: new Date().toISOString()
     };
     createPartner(partner);
+    if (paymentsOn() && !isSubscribed(user) && grantRefs(user.id, 'compat').length === 0) grantFree(user.id, 'compat', partner.id);
     return { partner: partnerView(partner), limits: limitsOf(user) };
   });
 

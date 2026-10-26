@@ -7,13 +7,13 @@ import { askBirth, go, type Screen } from '../store/navSlice';
 import ui from '../styles/ui.module.css';
 import styles from './Home.module.css';
 
-type Tile = { screen: Screen; title: string; desc: string; free?: boolean; needsBirth?: boolean; feature?: 'spread' | 'partner'; paid?: boolean };
+type Tile = { screen: Screen; title: string; desc: string; free?: boolean; needsBirth?: boolean; feature?: 'spread' | 'partner' | 'why' };
 
 const TILES: Tile[] = [
   { screen: 'sky', title: 'Гороскоп', desc: 'По Луне и транзитам к вашей карте', free: true, needsBirth: true },
   { screen: 'day', title: 'Карта дня', desc: 'Одна карта и вопрос на сегодня', free: true },
   { screen: 'topics', title: 'Расклады по темам', desc: 'Любовь, работа, выбор, сценарии', feature: 'spread' },
-  { screen: 'why', title: 'Почему сейчас так?', desc: 'Что сейчас активно в вашей карте', needsBirth: true, paid: true },
+  { screen: 'why', title: 'Почему сейчас так?', desc: 'Что сейчас активно в вашей карте', needsBirth: true, feature: 'why' },
   { screen: 'asc', title: 'Асцендент', desc: 'Как вас видят люди', free: true, needsBirth: true },
   { screen: 'compat', title: 'Совместимость', desc: 'Сильные и слабые стороны пары', needsBirth: true, feature: 'partner' }
 ];
@@ -46,12 +46,11 @@ type Status = { status: FreeStatus; left: number };
 
 const LOCKED = { kind: 'locked', text: 'по подписке' } as const;
 
-const tagFor = (tile: Tile, payments: boolean, subscribed: boolean, spread: Status, partner: Status) => {
+const tagFor = (tile: Tile, payments: boolean, subscribed: boolean, statuses: Record<'spread' | 'partner' | 'why', Status>) => {
   if (subscribed) return null;
   if (tile.free) return { kind: 'free', text: 'бесплатно' } as const;
   if (!payments) return null;
-  if (tile.paid) return LOCKED;
-  const current = tile.feature === 'spread' ? spread : tile.feature === 'partner' ? partner : null;
+  const current = tile.feature ? statuses[tile.feature] : null;
   if (!current) return null;
   if (current.status === 'free') return { kind: 'free', text: `${current.left} бесплатно` } as const;
   if (current.status === 'locked') return LOCKED;
@@ -64,6 +63,7 @@ export const Home = () => {
   const question = useFree('question');
   const spread = useFree('spread');
   const partner = useFree('partner');
+  const why = useFree('why');
   if (!me) return null;
   const hasBirth = me.birth !== null;
   const { payments, subscribed } = me.access;
@@ -111,7 +111,7 @@ export const Home = () => {
           </span>
         </button>
         {TILES.map((tile, index) => {
-          const tag = tagFor(tile, payments, subscribed, spread, partner);
+          const tag = tagFor(tile, payments, subscribed, { spread, partner, why });
           return (
             <button
               key={tile.screen}
