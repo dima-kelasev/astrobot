@@ -27,7 +27,7 @@ export const Asc = () => {
   useEffect(() => {
     if (!readingKey) return;
     const current = store.getState().readings.asc;
-    if (current.key === readingKey && current.status !== 'idle' && current.status !== 'error') return;
+    if (current.key === readingKey && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'asc', key: readingKey, path: '/api/asc/reading' }));
     return () => request.abort();
   }, [readingKey, dispatch, store]);

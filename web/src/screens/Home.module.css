@@ -1,3 +1,37 @@
+.greet {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.freya {
+  margin-left: -8px;
+  margin-bottom: -6px;
+}
+
+.greetText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+
+.greetTitle {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.greetLead {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -18,7 +52,7 @@
 }
 
 .tile:hover {
-  border-color: var(--lilac);
+  border-color: var(--teal);
 }
 
 .tile:active {
@@ -34,8 +68,10 @@
   overflow: hidden;
   grid-column: 1 / -1;
   padding: 20px;
-  border-color: color-mix(in srgb, var(--lilac) 50%, var(--line));
-  background: linear-gradient(135deg, color-mix(in srgb, var(--violet) 40%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
+  border-color: color-mix(in srgb, var(--teal) 50%, var(--line));
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--teal) 16%, transparent), transparent 55%),
+    linear-gradient(135deg, color-mix(in srgb, var(--violet) 55%, var(--surface)), color-mix(in srgb, var(--surface) 90%, transparent));
 }
 
 .heroBody {
@@ -89,7 +125,7 @@
 
 .wheelLines {
   fill: none;
-  stroke: var(--lilac);
+  stroke: var(--teal);
   stroke-width: 0.7;
   opacity: 0.8;
 }

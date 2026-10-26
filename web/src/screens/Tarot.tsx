@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { FreeLeft } from '../components/FreeLeft';
+import { FreeBadge } from '../components/FreeBadge';
+import { Paywall } from '../components/Paywall';
 import { LimitNote } from '../components/LimitNote';
 import { Reading } from '../components/Reading';
 import { TarotCard } from '../components/TarotCard';
@@ -104,6 +105,13 @@ const Ask = () => {
         <h1 className={ui.title}>{theme?.title ?? 'Расклад'}</h1>
         {theme && <p className={ui.lead}>{theme.description}</p>}
       </div>
+      <FreeBadge feature="spread" />
+      {exhausted && (
+        <Paywall
+          title="Бесплатный расклад уже сделан"
+          text="Дальше расклады по любым темам входят в подписку, без ограничений. Вопрос можно будет задать сразу после оформления."
+        />
+      )}
       {theme && (
         <div className={cx(ui.chips, styles.positions)}>
           {theme.positions.map((position, k) => (
@@ -113,51 +121,50 @@ const Ask = () => {
           ))}
         </div>
       )}
-      <div className={styles.questionWrap}>
-        <textarea
-          className={styles.question}
-          id="question"
-          maxLength={MAX_QUESTION}
-          aria-label={theme?.questionRequired ? 'Ваш вопрос' : 'Уточнение, необязательно'}
-          placeholder={theme?.hint ?? 'Ваш вопрос'}
-          value={question}
-          onChange={(event) => {
-            setEmpty(false);
-            dispatch(setQuestion(event.target.value));
-          }}
-        />
-        <span className={styles.counter}>
-          {question.length}/{MAX_QUESTION}
-        </span>
-      </div>
-      {themeKey === 'general' && (
-        <div className={styles.chips}>
-          {EXAMPLES.map((example) => (
-            <button
-              key={example}
-              className={styles.chip}
-              type="button"
-              onClick={() => {
+      {!exhausted && (
+        <>
+          <div className={styles.questionWrap}>
+            <textarea
+              className={styles.question}
+              id="question"
+              maxLength={MAX_QUESTION}
+              aria-label={theme?.questionRequired ? 'Ваш вопрос' : 'Уточнение, необязательно'}
+              placeholder={theme?.hint ?? 'Ваш вопрос'}
+              value={question}
+              onChange={(event) => {
                 setEmpty(false);
-                dispatch(setQuestion(example));
+                dispatch(setQuestion(event.target.value));
               }}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
+            />
+            <span className={styles.counter}>
+              {question.length}/{MAX_QUESTION}
+            </span>
+          </div>
+          {themeKey === 'general' && (
+            <div className={styles.chips}>
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example}
+                  className={styles.chip}
+                  type="button"
+                  onClick={() => {
+                    setEmpty(false);
+                    dispatch(setQuestion(example));
+                  }}
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          )}
+          {empty && <p className={ui.error}>Напишите вопрос или выберите пример.</p>}
+          {errorCode && !blocked && <p className={ui.error}>Не получилось начать расклад. Попробуйте ещё раз.</p>}
+          <button className={cx(ui.btn, ui.btnPrimary, ui.btnWide)} type="button" disabled={starting || !theme} onClick={start}>
+            Перемешать и разложить
+          </button>
+          {blocked && errorCode && <LimitNote code={errorCode} />}
+        </>
       )}
-      {empty && <p className={ui.error}>Напишите вопрос или выберите пример.</p>}
-      {errorCode && !blocked && <p className={ui.error}>Не получилось начать расклад. Попробуйте ещё раз.</p>}
-      {exhausted ? (
-        <LimitNote code="limit" />
-      ) : (
-        <button className={cx(ui.btn, ui.btnPrimary, ui.btnWide)} type="button" disabled={starting || !theme} onClick={start}>
-          Перемешать и разложить
-        </button>
-      )}
-      {!exhausted && <FreeLeft feature="spread" />}
-      {!exhausted && blocked && errorCode && <LimitNote code={errorCode} />}
     </div>
   );
 };

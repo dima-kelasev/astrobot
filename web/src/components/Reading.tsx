@@ -55,14 +55,14 @@ export const Reading = ({ kind, action, locked }: Props) => {
   if (reading.status === 'error' && reading.note && PAYWALL.has(reading.note)) return <LimitNote code={reading.note} />;
   const waiting = reading.status === 'loading';
   const label = waiting
-    ? 'Смотрю на звёзды'
+    ? 'Фрея смотрит на звёзды'
     : reading.status === 'streaming'
-      ? 'Пишу толкование'
+      ? 'Фрея пишет толкование'
       : reading.status === 'error'
         ? 'Не получилось'
         : reading.source === 'template'
           ? 'Краткое толкование'
-          : 'Ваше толкование';
+          : 'Толкование Фреи';
   const note = noteText(reading.note);
   const isLocked = reading.locked && reading.status === 'done';
   return (

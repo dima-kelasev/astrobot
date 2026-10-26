@@ -14,8 +14,6 @@ const starPath = (points: number, step: number, radius: number) => {
   return d;
 };
 
-const BACK_STAR = starPath(8, 3, 44);
-
 const Emblem = ({ index }: { index: number }) => {
   const points = 3 + (index % 9);
   const rings = [14, 22].slice(0, Math.floor(index / 9));
@@ -39,11 +37,10 @@ export const TarotCard = ({ face, flipped, floating = false, floatDelay = 0 }: P
     <span className={cx(styles.float, floating && styles.floating)} style={floating ? { animationDelay: `${floatDelay}s` } : undefined}>
       <span className={cx(styles.inner, flipped && styles.flipped)}>
         <span className={styles.back}>
-          <svg className={styles.backStar} viewBox="-50 -50 100 100" aria-hidden="true">
-            <circle r="44" fill="none" stroke="currentColor" strokeWidth="1" />
-            <path d={BACK_STAR} fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <circle r="15" fill="none" stroke="currentColor" strokeWidth="0.8" strokeDasharray="1 3" />
-            <circle r="4" fill="currentColor" />
+          <svg className={styles.backStar} viewBox="-50 -80 100 160" aria-hidden="true">
+            <circle cy="-56" r="3" fill="currentColor" />
+            <path d="M8 -24 A26 26 0 1 0 8 24 A21 21 0 1 1 8 -24 Z" fill="currentColor" />
+            <circle cy="56" r="3" fill="currentColor" />
           </svg>
         </span>
         <span className={styles.face}>

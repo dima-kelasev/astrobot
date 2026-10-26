@@ -18,7 +18,7 @@ export const Sky = () => {
   const readingKey = sky && birth ? `${sky.day}|${birth.date}|${birth.time ?? '-'}|${birth.place?.name ?? '-'}` : null;
 
   useEffect(() => {
-    if (!birth || store.getState().sky.status !== 'idle') return;
+    if (!birth || store.getState().sky.status === 'ready') return;
     const request = dispatch(fetchSky());
     return () => request.abort();
   }, [birth, dispatch, store]);

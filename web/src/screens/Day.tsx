@@ -19,7 +19,7 @@ export const Day = () => {
   const readingKey = data?.opened ? data.day : null;
 
   useEffect(() => {
-    if (store.getState().day.status !== 'idle') return;
+    if (store.getState().day.status === 'ready') return;
     const request = dispatch(fetchDay());
     return () => request.abort();
   }, [dispatch, store]);

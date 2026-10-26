@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { FreeLeft } from '../components/FreeLeft';
+import { FreeBadge, useFree } from '../components/FreeBadge';
+import { Paywall } from '../components/Paywall';
 import { cx } from '../lib/cx';
 import { useAppDispatch, useAppSelector, useAppStore } from '../store/hooks';
 import { openTheme } from '../store/navSlice';
@@ -11,6 +12,7 @@ export const Topics = () => {
   const store = useAppStore();
   const themes = useAppSelector((state) => state.spread.themes);
   const status = useAppSelector((state) => state.spread.themesStatus);
+  const spread = useFree('spread');
 
   useEffect(() => {
     if (store.getState().spread.themesStatus === 'ready') return;
@@ -23,8 +25,12 @@ export const Topics = () => {
       <div className={ui.head}>
         <span className={ui.eyebrow}>Таро</span>
         <h1 className={ui.title}>Расклады по темам</h1>
-        <p className={ui.lead}>Выберите тему. Карты вы вытянете сами из перемешанной колоды.</p>
+        <p className={ui.lead}>Выберите тему. Карты вы вытянете сами из перемешанной колоды, а Фрея расскажет, что они значат.</p>
       </div>
+      <FreeBadge feature="spread" />
+      {spread.status === 'locked' && (
+        <Paywall title="Бесплатный расклад уже сделан" text="Дальше расклады по любым темам входят в подписку, без ограничений." />
+      )}
       {status === 'error' && <p className={ui.error}>Не получилось загрузить список раскладов. Откройте экран ещё раз.</p>}
       <div className={cx(ui.glass, ui.list)}>
         {themes.map((theme) => (
@@ -39,7 +45,6 @@ export const Topics = () => {
           </button>
         ))}
       </div>
-      <FreeLeft feature="spread" />
     </section>
   );
 };

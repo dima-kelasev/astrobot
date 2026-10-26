@@ -28,7 +28,7 @@ export const Why = () => {
   useEffect(() => {
     if (!readingKey) return;
     const current = store.getState().readings.why;
-    if (current.key === readingKey && current.status !== 'idle' && current.status !== 'error') return;
+    if (current.key === readingKey && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'why', key: readingKey, path: '/api/why/reading' }));
     return () => request.abort();
   }, [readingKey, dispatch, store]);

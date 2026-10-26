@@ -1,0 +1,152 @@
+.freya {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.body {
+  transform-origin: 120px 262px;
+}
+
+.cardBack,
+.cardFace,
+.card,
+.spark {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cardFace {
+  transform: scaleX(0);
+}
+
+.spark {
+  opacity: 0;
+}
+
+.alive .body {
+  animation: sway 6s ease-in-out infinite;
+}
+
+.alive .card {
+  animation:
+    lift 7s ease-in-out infinite,
+    glow 7s ease-in-out infinite;
+}
+
+.alive .cardBack {
+  animation: back 7s ease-in-out infinite;
+}
+
+.alive .cardFace {
+  animation: face 7s ease-in-out infinite;
+}
+
+.alive .spark {
+  animation: spark 7s ease-out infinite;
+}
+
+.alive .spark:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.alive .spark:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes lift {
+  0%,
+  30%,
+  92%,
+  100% {
+    transform: translateY(0);
+  }
+  42%,
+  80% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes back {
+  0%,
+  36% {
+    transform: scaleX(1);
+  }
+  42%,
+  82% {
+    transform: scaleX(0);
+  }
+  88%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes face {
+  0%,
+  42% {
+    transform: scaleX(0);
+  }
+  48%,
+  76% {
+    transform: scaleX(1);
+  }
+  82%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes glow {
+  0%,
+  36%,
+  90%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(242, 193, 78, 0));
+  }
+  50%,
+  74% {
+    filter: drop-shadow(0 0 8px rgba(242, 193, 78, 0.85));
+  }
+}
+
+@keyframes spark {
+  0%,
+  46% {
+    opacity: 0;
+    transform: scale(0.2) rotate(0deg);
+  }
+  54% {
+    opacity: 1;
+    transform: scale(1.15) rotate(45deg);
+  }
+  66% {
+    opacity: 0.9;
+    transform: scale(0.9) rotate(70deg);
+  }
+  76%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alive .body,
+  .alive .card,
+  .alive .cardBack,
+  .alive .cardFace,
+  .alive .spark {
+    animation: none;
+  }
+}

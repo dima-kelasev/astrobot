@@ -89,7 +89,8 @@
   position: absolute;
   text-align: center;
   font-family: var(--font-card);
-  font-size: 17px;
+  font-weight: 500;
+  font-size: 13px;
   line-height: 1.1;
   padding-inline: 2px;
   overflow-wrap: anywhere;

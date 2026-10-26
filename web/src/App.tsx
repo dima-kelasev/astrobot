@@ -1,6 +1,7 @@
 import { useEffect, type ComponentType } from 'react';
 import styles from './App.module.css';
 import { BottomNav } from './components/BottomNav';
+import { Freya } from './components/Freya';
 import { PaySheet } from './components/PaySheet';
 import { Starfield } from './components/Starfield';
 import { TopBar } from './components/TopBar';
@@ -67,6 +68,7 @@ const startScreen = () => {
 
 const Message = ({ title, text }: { title: string; text: string }) => (
   <div className={cx(ui.head, ui.headCenter, styles.message)}>
+    <Freya size={120} />
     <h1 className={ui.title}>{title}</h1>
     <p className={ui.lead}>{text}</p>
   </div>
@@ -111,7 +113,7 @@ export const App = () => {
           {status === 'error' && errorCode !== 'unauthorized' && (
             <Message title="Нет связи" text="Не получилось загрузить данные. Проверьте интернет и откройте мини-апп ещё раз." />
           )}
-          {(status === 'idle' || status === 'loading') && <Message title="Астробот" text="Смотрим на небо…" />}
+          {(status === 'idle' || status === 'loading') && <Message title="Фрея" text="Смотрю на небо…" />}
           {ready && <Current />}
         </main>
         <p className={styles.disclaimer}>Толкования не заменяют консультацию врача, юриста и финансового специалиста.</p>

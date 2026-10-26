@@ -17,7 +17,7 @@ const safe = (call: () => void) => {
   } catch {}
 };
 
-const BG = '#0B0718';
+const BG = '#121833';
 
 export const telegram = {
   inTelegram,

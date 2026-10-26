@@ -33,7 +33,7 @@ export const TopBar = () => {
           </svg>
         </button>
       )}
-      <span className={styles.title}>{subTitle ?? 'Астробот'}</span>
+      <span className={styles.title}>{subTitle ?? 'Фрея'}</span>
       {sign && (
         <button className={styles.sign} type="button" aria-label={`Профиль, знак ${sign}`} onClick={() => dispatch(go('profile'))}>
           {sign}

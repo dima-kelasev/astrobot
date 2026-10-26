@@ -1,0 +1,9 @@
+.head {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.freya {
+  margin-bottom: -4px;
+}

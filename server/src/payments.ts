@@ -102,7 +102,7 @@ export const createRemotePayment = async (input: {
       amount: money(input.amount),
       capture: true,
       confirmation: { type: 'redirect', return_url: paymentReturnUrl },
-      description: `Астробот: ${input.description}`.slice(0, 128),
+      description: `Фрея: ${input.description}`.slice(0, 128),
       metadata: { userId: String(input.userId), product: input.product, ref: input.ref },
       ...(methodData ? { payment_method_data: methodData } : {}),
       ...(env.YOOKASSA_RECEIPTS
@@ -111,7 +111,7 @@ export const createRemotePayment = async (input: {
               customer: { email: input.email },
               items: [
                 {
-                  description: `Астробот: ${product.title}`.slice(0, 128),
+                  description: `Фрея: ${product.title}`.slice(0, 128),
                   quantity: '1.00',
                   amount: money(input.amount),
                   vat_code: env.YOOKASSA_VAT_CODE,

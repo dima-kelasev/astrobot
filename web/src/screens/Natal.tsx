@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { AspectList, HouseCard, PlanetCard, focusPart } from '../components/NatalParts';
+import { Tag } from '../components/FreeBadge';
 import { NatalWheel } from '../components/NatalWheel';
 import { NeedBirth } from '../components/NeedBirth';
 import { Paywall } from '../components/Paywall';
@@ -35,7 +36,7 @@ export const Natal = () => {
   useEffect(() => {
     if (!readingKey) return;
     const current = store.getState().readings.natal;
-    if (current.key === readingKey && current.status !== 'idle' && current.status !== 'error') return;
+    if (current.key === readingKey && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'natal', key: readingKey, path: '/api/natal/reading' }));
     return () => request.abort();
   }, [readingKey, dispatch, store]);
@@ -149,6 +150,7 @@ export const Natal = () => {
             </div>
           )}
           <h2 className={ui.sub}>Разбор всей карты</h2>
+          {!full && <Tag kind="free" text="Характер и сильные стороны — бесплатно" />}
           <Reading
             kind="natal"
             locked={

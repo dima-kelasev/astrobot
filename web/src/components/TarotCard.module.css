@@ -47,17 +47,25 @@
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.5);
 }
 
+.back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2.5cqw solid var(--gold);
+  border-radius: 7cqw;
+}
+
 .back::after {
   content: '';
   position: absolute;
-  inset: 5cqw;
-  border: 1px solid color-mix(in srgb, var(--gold) 65%, transparent);
-  border-radius: 4cqw;
+  inset: 7cqw;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 3cqw;
 }
 
 .backStar {
   width: 56cqw;
-  height: 56cqw;
+  height: 90cqw;
 }
 
 .face {
@@ -66,7 +74,15 @@
   color: var(--card-ink);
   box-shadow:
     0 10px 22px rgba(0, 0, 0, 0.5),
-    0 0 26px color-mix(in srgb, var(--lilac) 55%, transparent);
+    0 0 26px color-mix(in srgb, var(--gold) 45%, transparent);
+}
+
+.face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2.5cqw solid var(--gold);
+  border-radius: 7cqw;
 }
 
 .art {
@@ -85,19 +101,25 @@
 
 .num {
   font-family: var(--font-card);
-  font-size: 15cqw;
+  font-weight: 600;
+  font-size: 11cqw;
   line-height: 1;
+  color: var(--violet-hi);
 }
 
 .emblem {
   width: 70cqw;
   height: 70cqw;
+  color: #c9962a;
 }
 
 .name {
   font-family: var(--font-card);
-  font-size: 10cqw;
-  line-height: 1.05;
+  font-weight: 600;
+  font-size: 8cqw;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
   text-align: center;
   overflow-wrap: anywhere;
 }

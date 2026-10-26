@@ -31,7 +31,7 @@ export const Partner = () => {
   useEffect(() => {
     if (!ready || !id || !readingKey) return;
     const current = store.getState().readings.compat;
-    if (current.key === readingKey && current.status !== 'idle' && current.status !== 'error') return;
+    if (current.key === readingKey && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'compat', key: readingKey, path: `/api/partners/${id}/reading` }));
     return () => request.abort();
   }, [ready, id, readingKey, dispatch, store]);

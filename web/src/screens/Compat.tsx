@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BirthForm } from '../components/BirthForm';
-import { FreeLeft } from '../components/FreeLeft';
+import { FreeBadge } from '../components/FreeBadge';
 import { LimitNote } from '../components/LimitNote';
 import { NeedBirth } from '../components/NeedBirth';
 import { Paywall } from '../components/Paywall';
@@ -39,6 +39,7 @@ export const Compat = () => {
         <h1 className={ui.title}>Совместимость</h1>
         <p className={ui.lead}>Сравним вашу карту с картой другого человека: где вы сходитесь, где возможны трения и как договариваться.</p>
       </div>
+      {hasBirth && <FreeBadge feature="partner" />}
       {!hasBirth && <NeedBirth returnTo="compat" title="Сначала ваши данные" text="Для совместимости нужна и ваша карта рождения." />}
       {hasBirth && list.length > 0 && (
         <div className={cx(ui.glass, ui.list)}>
@@ -85,7 +86,6 @@ export const Compat = () => {
         </>
       )}
       {blocked && addError && <LimitNote code={addError} />}
-      {hasBirth && <FreeLeft feature="partner" />}
     </section>
   );
 };

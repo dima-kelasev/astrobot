@@ -39,7 +39,7 @@ const appUrl = (screen?: string) => {
   return url.toString();
 };
 
-const openKeyboard = () => Markup.inlineKeyboard([Markup.button.webApp('Открыть Астробота', appUrl())]);
+const openKeyboard = () => Markup.inlineKeyboard([Markup.button.webApp('Открыть Фрею', appUrl())]);
 
 const slotKeyboard = (slot: Slot) =>
   slot === 'morning'
@@ -47,10 +47,10 @@ const slotKeyboard = (slot: Slot) =>
     : Markup.inlineKeyboard([Markup.button.webApp('Разложить карты', appUrl('topics'))]);
 
 const WELCOME = [
-  'Здравствуйте! Я Астробот.',
+  'Здравствуйте! Я Фрея. Читаю звёзды и карты Таро.',
   '',
-  'Что умею:',
-  '• отвечать на ваш вопрос раскладом Таро или по натальной карте',
+  'Что у меня есть для вас:',
+  '• ответ на ваш вопрос раскладом Таро или по натальной карте',
   '• натальная карта, асцендент и «Почему сейчас так?»',
   '• совместимость пары',
   '• расклады по темам: любовь, работа, трудный выбор',
@@ -64,8 +64,8 @@ const dateText = (iso: string) =>
 
 const paidStatus = (userId: number) => {
   const until = subscriptionUntil(userId);
-  if (until && until > new Date().toISOString()) return `Спасибо! Подписка активна до ${dateText(until)}. Всё уже открыто в Астроботе.`;
-  if (grantRefs(userId, 'natal').length || grantRefs(userId, 'compat').length) return 'Спасибо! Покупка уже открыта в Астроботе.';
+  if (until && until > new Date().toISOString()) return `Спасибо! Подписка активна до ${dateText(until)}. Всё уже открыто.`;
+  if (grantRefs(userId, 'natal').length || grantRefs(userId, 'compat').length) return 'Спасибо! Покупка уже открыта.';
   return 'Платёж ещё обрабатывается. Обычно это занимает до минуты. Если через несколько минут ничего не изменится, напишите на почту из политики конфиденциальности.';
 };
 
@@ -252,7 +252,7 @@ export const createBot = () => {
       const outcome = usePromo(ctx.from.id, ctx.payload);
       const result = promoText(outcome, dateText);
       const text = known ? result : `${WELCOME}\n\n${result}`;
-      if (hasWebApp) await ctx.reply(text, Markup.inlineKeyboard([Markup.button.webApp('Открыть Астробота', appUrl(outcome.ok ? 'plan' : undefined))]));
+      if (hasWebApp) await ctx.reply(text, Markup.inlineKeyboard([Markup.button.webApp('Открыть Фрею', appUrl(outcome.ok ? 'plan' : undefined))]));
       else await ctx.reply(text);
       return;
     }
@@ -332,7 +332,7 @@ export const createBot = () => {
 };
 
 const PUBLIC_COMMANDS = [
-  { command: 'start', description: 'Открыть Астробота' },
+  { command: 'start', description: 'Открыть Фрею' },
   { command: 'help', description: 'Помощь' },
   { command: 'delete', description: 'Удалить мои данные' }
 ];

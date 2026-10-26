@@ -8,8 +8,6 @@ import '@fontsource/onest/cyrillic-600.css';
 import '@fontsource/onest/latin-400.css';
 import '@fontsource/onest/latin-500.css';
 import '@fontsource/onest/latin-600.css';
-import '@fontsource/forum/cyrillic-400.css';
-import '@fontsource/forum/latin-400.css';
 import './styles/global.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

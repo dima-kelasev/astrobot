@@ -25,7 +25,7 @@ const PartReading = ({ part, baseKey }: { part: string; baseKey: string }) => {
   useEffect(() => {
     const key = `${baseKey}|${part}`;
     const current = store.getState().readings.natalPart;
-    if (current.key === key && current.status !== 'idle' && current.status !== 'error') return;
+    if (current.key === key && current.status === 'done') return;
     const request = dispatch(fetchReading({ kind: 'natalPart', key, path: `/api/natal/part/${part}/reading` }));
     return () => request.abort();
   }, [part, baseKey, dispatch, store]);

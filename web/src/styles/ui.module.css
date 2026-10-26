@@ -88,9 +88,10 @@
 }
 
 .btnPrimary {
-  background: linear-gradient(135deg, var(--violet), var(--violet-hi));
-  color: var(--on-violet);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--violet) 55%, transparent);
+  background: linear-gradient(135deg, var(--teal), var(--teal-hi));
+  color: var(--on-teal);
+  font-weight: 700;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--teal) 35%, transparent);
 }
 
 .btnGhost {
@@ -234,7 +235,7 @@
 }
 
 .switch:checked {
-  background: var(--violet-hi);
+  background: var(--teal);
 }
 
 .switch:checked::after {
@@ -254,7 +255,7 @@
   width: 20px;
   height: 20px;
   margin: 1px 0 0;
-  accent-color: var(--violet-hi);
+  accent-color: var(--teal);
 }
 
 .chips {
@@ -274,7 +275,7 @@
 }
 
 .chip:hover {
-  border-color: var(--lilac);
+  border-color: var(--teal);
 }
 
 .list {
@@ -373,7 +374,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--lilac);
+  background: var(--gold);
 }
 
 .center {
@@ -381,7 +382,7 @@
 }
 
 .link {
-  color: var(--lilac);
+  color: var(--teal-hi);
   background: none;
   border: 0;
   padding: 0;
