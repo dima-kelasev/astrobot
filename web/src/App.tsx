@@ -14,6 +14,7 @@ import { Day } from './screens/Day';
 import { History } from './screens/History';
 import { HistoryItem } from './screens/HistoryItem';
 import { Home } from './screens/Home';
+import { Mak } from './screens/Mak';
 import { Natal } from './screens/Natal';
 import { Partner } from './screens/Partner';
 import { Plan } from './screens/Plan';
@@ -46,7 +47,8 @@ const SCREENS: Record<Screen, ComponentType> = {
   partner: Partner,
   historyItem: HistoryItem,
   birth: Birth,
-  plan: Plan
+  plan: Plan,
+  mak: Mak
 };
 
 const DEEP_LINKS: Record<string, Screen> = {
@@ -58,7 +60,8 @@ const DEEP_LINKS: Record<string, Screen> = {
   why: 'why',
   asc: 'asc',
   compat: 'compat',
-  plan: 'plan'
+  plan: 'plan',
+  mak: 'mak'
 };
 
 const startScreen = () => {

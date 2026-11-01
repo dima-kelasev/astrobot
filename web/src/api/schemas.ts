@@ -11,7 +11,7 @@ export const cardSchema = z.object({
 
 const limitSchema = z.object({ used: z.number(), max: z.number() });
 
-export const limitsSchema = z.object({ spread: limitSchema, question: limitSchema, partner: limitSchema, why: limitSchema.default({ used: 0, max: 0 }) });
+export const limitsSchema = z.object({ spread: limitSchema, question: limitSchema, partner: limitSchema, why: limitSchema.default({ used: 0, max: 0 }), mak: limitSchema.default({ used: 0, max: 0 }) });
 
 const placeSchema = z.object({ name: z.string(), label: z.string() });
 
@@ -41,6 +41,7 @@ export const meSchema = z.object({
   access: accessSchema,
   email: z.string().nullable(),
   privacyUrl: z.string(),
+  makAvailable: z.boolean().default(false),
   today: z.object({ day: z.string(), dateLabel: z.string(), moonLine: z.string() })
 });
 
@@ -183,6 +184,20 @@ export const questionStartSchema = z.object({
   limits: limitsSchema
 });
 
+export const makCardSchema = z.object({ id: z.number(), image: z.string(), title: z.string(), artist: z.string(), year: z.string() });
+
+export const makSessionSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  card: makCardSchema.nullable(),
+  questions: z.array(z.string()),
+  answers: z.array(z.string())
+});
+
+export const makStartSchema = z.object({ session: makSessionSchema, limits: limitsSchema });
+
+export const makOneSchema = z.object({ session: makSessionSchema });
+
 export const historySchema = z.object({
   items: z.array(z.object({ kind: z.string(), key: z.string(), title: z.string(), subtitle: z.string(), date: z.string() }))
 });
@@ -238,6 +253,8 @@ export type Limits = z.infer<typeof limitsSchema>;
 export type Me = z.infer<typeof meSchema>;
 export type Access = z.infer<typeof accessSchema>;
 export type Plans = z.infer<typeof plansSchema>;
+export type MakSession = z.infer<typeof makSessionSchema>;
+export type MakCard = z.infer<typeof makCardSchema>;
 export type PromoResult = z.infer<typeof promoResultSchema>;
 export type ProductKey = (typeof PRODUCT_KEYS)[number];
 export type Sky = z.infer<typeof skySchema>;

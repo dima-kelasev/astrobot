@@ -43,6 +43,8 @@ const schema = z.object({
   FREE_SPREADS: z.coerce.number().int().min(0).default(1),
   FREE_PARTNERS: z.coerce.number().int().min(0).default(1),
   FREE_WHY: z.coerce.number().int().min(0).default(1),
+  FREE_MAK: z.coerce.number().int().min(0).default(1),
+  LIMIT_MAK: z.coerce.number().int().min(0).default(3),
   ADMIN_IDS: z.string().default(''),
   DEV_USER_ID: z.coerce.number().int().positive().optional()
 });

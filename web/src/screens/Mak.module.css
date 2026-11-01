@@ -1,0 +1,220 @@
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.steps li::marker {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.flip {
+  align-self: center;
+  width: min(72vw, 280px);
+  aspect-ratio: 3 / 4;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  perspective: 1200px;
+}
+
+.flip:disabled {
+  cursor: default;
+}
+
+.flipInner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.flip:not(.flipped) .flipInner {
+  animation: bob 4s ease-in-out infinite;
+}
+
+.flipped .flipInner {
+  transform: rotateY(180deg);
+}
+
+.back,
+.front {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.back {
+  color: var(--gold);
+  background: linear-gradient(160deg, var(--back-a), var(--back-b));
+  border: 4px solid var(--gold);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 0 36px color-mix(in srgb, var(--gold) 25%, transparent);
+}
+
+.back::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 10px;
+}
+
+.back svg {
+  width: 40%;
+  height: 60%;
+}
+
+.front {
+  transform: rotateY(180deg);
+  background: #0b0f22;
+  border: 4px solid var(--cream);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 0 40px color-mix(in srgb, var(--gold) 35%, transparent);
+}
+
+.front img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.picture {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #0b0f22;
+  cursor: zoom-in;
+}
+
+.picture img {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+}
+
+.pictureSmall {
+  flex: none;
+  width: 96px;
+  border-radius: 12px;
+}
+
+.pictureSmall img {
+  height: 128px;
+  max-height: none;
+  object-fit: cover;
+}
+
+.pictureSmall .zoom {
+  display: none;
+}
+
+.zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #070a18 75%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.zoom svg {
+  width: 14px;
+  height: 14px;
+}
+
+.progress {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background-color 0.3s;
+}
+
+.dotDone {
+  background: color-mix(in srgb, var(--teal) 60%, var(--line));
+}
+
+.dotNow {
+  background: var(--gold);
+}
+
+.question {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 19px;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.doneHead {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.doneQuestion {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flipInner {
+    transition: none;
+  }
+  .flip:not(.flipped) .flipInner {
+    animation: none;
+  }
+}

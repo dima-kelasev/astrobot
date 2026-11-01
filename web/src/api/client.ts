@@ -16,6 +16,8 @@ import {
   paymentCreatedSchema,
   paymentStatusSchema,
   pickSchema,
+  makOneSchema,
+  makStartSchema,
   plansSchema,
   promoResultSchema,
   questionStartSchema,
@@ -93,6 +95,9 @@ export const api = {
   themes: (signal?: AbortSignal) => request(themesSchema, '/api/themes', { signal }),
   startSpread: (theme: string, question: string) => request(spreadStartSchema, '/api/spreads', { method: 'POST', body: { theme, question } }),
   pick: (id: string, index: number) => request(pickSchema, `/api/spreads/${id}/pick`, { method: 'POST', body: { index } }),
+  makStart: (question: string) => request(makStartSchema, '/api/mak', { method: 'POST', body: { question } }),
+  makAnswers: (id: string, answers: string[]) =>
+    request(makOneSchema, `/api/mak/${encodeURIComponent(id)}/answers`, { method: 'PUT', body: { answers } }),
   natal: (signal?: AbortSignal) => request(natalSchema, '/api/natal', { signal }),
   asc: (signal?: AbortSignal) => request(ascSchema, '/api/asc', { signal }),
   why: (signal?: AbortSignal) => request(whySchema, '/api/why', { signal }),

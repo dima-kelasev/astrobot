@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { chartReducer } from './chartSlice';
 import { dayReducer } from './daySlice';
 import { historyReducer } from './historySlice';
+import { makReducer } from './makSlice';
 import { navReducer } from './navSlice';
 import { partnersReducer } from './partnersSlice';
 import { paymentReducer } from './paymentSlice';
@@ -23,7 +24,8 @@ export const store = configureStore({
     partners: partnersReducer,
     question: questionReducer,
     history: historyReducer,
-    payment: paymentReducer
+    payment: paymentReducer,
+    mak: makReducer
   }
 });
 

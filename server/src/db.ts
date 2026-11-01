@@ -118,6 +118,15 @@ db.exec(`
     created_at TEXT NOT NULL,
     PRIMARY KEY (code, user_id)
   );
+  CREATE TABLE IF NOT EXISTS mak_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    card INTEGER NOT NULL,
+    answers TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS mak_user ON mak_sessions (user_id, created_at);
   CREATE TABLE IF NOT EXISTS used_free (
     hash TEXT NOT NULL,
     feature TEXT NOT NULL,
@@ -265,7 +274,7 @@ export type Partner = {
   createdAt: string;
 };
 
-export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question';
+export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question' | 'mak';
 
 const placeOf = (r: {
   place_name: string | null;
@@ -405,7 +414,7 @@ grantFirstPartners();
 
 export const deleteUserData = (id: number) => {
   keepUsedFree(id);
-  for (const table of ['readings', 'spreads', 'questions', 'partners', 'usage', 'day_cards']) {
+  for (const table of ['readings', 'spreads', 'questions', 'partners', 'usage', 'day_cards', 'mak_sessions']) {
     db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(id);
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
@@ -907,5 +916,49 @@ export const promoStats = (): PromoStat[] =>
         discounted: countOf("SELECT COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND promo = ?", promo.code)
       };
     });
+
+const makRow = z.object({
+  id: z.string(),
+  user_id: z.number(),
+  question: z.string(),
+  card: z.number(),
+  answers: z.string(),
+  created_at: z.string()
+});
+
+const answersSchema = z.array(z.string());
+
+export type MakSession = { id: string; userId: number; question: string; card: number; answers: string[]; createdAt: string };
+
+const toMak = (row: unknown): MakSession | null => {
+  if (row === undefined) return null;
+  const r = makRow.parse(row);
+  return { id: r.id, userId: r.user_id, question: r.question, card: r.card, answers: answersSchema.parse(JSON.parse(r.answers)), createdAt: r.created_at };
+};
+
+export const createMak = (session: { id: string; userId: number; question: string; card: number }) => {
+  db.prepare('INSERT INTO mak_sessions (id, user_id, question, card, answers, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    session.id,
+    session.userId,
+    session.question,
+    session.card,
+    '[]',
+    now()
+  );
+};
+
+export const getMak = (id: string) => toMak(db.prepare('SELECT * FROM mak_sessions WHERE id = ?').get(id));
+
+export const setMakAnswers = (id: string, answers: string[]) => {
+  db.prepare('UPDATE mak_sessions SET answers = ? WHERE id = ?').run(JSON.stringify(answers), id);
+};
+
+const cardRow = z.object({ card: z.number() });
+
+export const recentMakCards = (userId: number, limit: number) =>
+  db
+    .prepare('SELECT card FROM mak_sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?')
+    .all(userId, limit)
+    .map((row) => cardRow.parse(row).card);
 
 export const closeDb = () => db.close();

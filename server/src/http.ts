@@ -11,11 +11,13 @@ import {
   completePayment,
   createPartner,
   createPayment,
+  createMak,
   createQuestion,
   createSpread,
   deletePartner,
   deleteUserData,
   getPartner,
+  getMak,
   getPayment,
   getQuestion,
   getReading,
@@ -28,11 +30,13 @@ import {
   listReadings,
   markPaymentCanceled,
   pendingPayments,
+  recentMakCards,
   openDay,
   saveReading,
   setBirth,
   setConsent,
   setEmail,
+  setMakAnswers,
   setNotifications,
   setPicks,
   subscriptionUntil,
@@ -47,6 +51,7 @@ import { env, fastModel, llmReady, privacyUrl, siteDist, webDist, yookassaReady 
 import { placeById, searchCities, type Place } from './geo.js';
 import { METHODS, PRODUCTS, PRODUCT_KEYS, PaymentError, createRemotePayment, discounted, fetchRemotePayment, type ProductKey } from './payments.js';
 import { discountOf, usePromo } from './promo.js';
+import { MAK_DECK, MAK_QUESTIONS, drawMakCard, makCardOf, makCardView } from './mak.js';
 import { LlmError, completeText, streamCompletion } from './llm.js';
 import {
   ascInfo,
@@ -86,6 +91,7 @@ import {
   dayPrompt,
   natalPartPrompt,
   natalPrompt,
+  makPrompt,
   questionPrompt,
   routerPrompt,
   skyPrompt,
@@ -150,10 +156,10 @@ const authUser = (request: FastifyRequest): User => {
   return existing && existing.firstName === firstName ? existing : upsertUser(id, firstName, tg?.username ?? null);
 };
 
-const FEATURES = ['spread', 'question', 'partner'] as const;
+const FEATURES = ['spread', 'question', 'partner', 'mak'] as const;
 type Feature = (typeof FEATURES)[number];
 
-const LIMITS: Record<Feature, number> = { spread: env.LIMIT_SPREADS, question: env.LIMIT_QUESTIONS, partner: env.LIMIT_PARTNERS };
+const LIMITS: Record<Feature, number> = { spread: env.LIMIT_SPREADS, question: env.LIMIT_QUESTIONS, partner: env.LIMIT_PARTNERS, mak: env.LIMIT_MAK };
 
 const paymentsOn = () => env.PAYMENTS_ENABLED && yookassaReady;
 
@@ -181,9 +187,9 @@ const hasWhy = (user: User) => !paymentsOn() || isSubscribed(user) || whySeen(us
 
 const freeQuestionsLeft = (user: User) => Math.max(0, env.FREE_QUESTIONS - totalUsage(user.id, 'question'));
 
-const FREE: Record<Feature, number> = { spread: env.FREE_SPREADS, question: env.FREE_QUESTIONS, partner: env.FREE_PARTNERS };
+const FREE: Record<Feature, number> = { spread: env.FREE_SPREADS, question: env.FREE_QUESTIONS, partner: env.FREE_PARTNERS, mak: env.FREE_MAK };
 
-const PAYWALL_CODE: Record<Feature, string> = { spread: 'limit', question: 'premium', partner: 'partner' };
+const PAYWALL_CODE: Record<Feature, string> = { spread: 'limit', question: 'premium', partner: 'partner', mak: 'mak' };
 
 const consume = (user: User, feature: Feature) => {
   const day = today();
@@ -250,6 +256,7 @@ const meView = (user: User) => {
     access: accessOf(user),
     email: user.email,
     privacyUrl,
+    makAvailable: MAK_DECK.length > 0,
     today: { day, dateLabel: dateLong(day, env.APP_TZ), moonLine: daySky(day, env.APP_TZ).moonLine }
   };
 };
@@ -293,6 +300,8 @@ const idParams = z.object({ id: z.string().min(1).max(64) });
 const readingQuery = z.object({ refresh: z.string().optional() });
 const citiesQuery = z.object({ q: z.string().max(60).default('') });
 const questionBody = z.object({ text: z.string().trim().min(3).max(500) });
+const makBody = z.object({ question: z.string().trim().min(3).max(500) });
+const makAnswersBody = z.object({ answers: z.array(z.string().max(800)).length(MAK_QUESTIONS.length) });
 const partnerBody = birthBody.extend({ name: z.string().trim().min(1).max(40) });
 const historyQuery = z.object({ kind: z.string().max(20), key: z.string().max(120) });
 
@@ -512,6 +521,7 @@ const classify = async (text: string): Promise<Tool> => {
 };
 
 const KIND_TITLES: Record<string, string> = {
+  mak: 'Метафорическая карта',
   sky: 'Гороскоп на день',
   day: 'Карта дня',
   natal: 'Натальная карта',
@@ -542,6 +552,9 @@ const historyMeta = (userId: number, kind: string, key: string) => {
       cards: question ? question.cards.map(faceOf) : [],
       positions: ['Суть ситуации', 'Что мешает', 'Что поможет']
     };
+  }
+  if (kind === 'mak') {
+    return { title: KIND_TITLES.mak, subtitle: getMak(key)?.question ?? '', cards: [], positions: [] };
   }
   if (kind === 'compat') {
     const partner = getPartner(key.split(':')[0]);
@@ -1124,6 +1137,77 @@ export const createApp = async () => {
       return reply.status(500).send({ ok: false });
     }
     return reply.status(200).send({ ok: true });
+  });
+
+  const ownedMak = (user: User, id: string) => {
+    const session = getMak(id);
+    if (!session || session.userId !== user.id) throw new HttpError(404, 'not_found');
+    return session;
+  };
+
+  const makView = (session: { id: string; question: string; card: number; answers: string[] }) => {
+    const card = makCardOf(session.card);
+    return {
+      id: session.id,
+      question: session.question,
+      card: card ? makCardView(card) : null,
+      questions: [...MAK_QUESTIONS],
+      answers: session.answers
+    };
+  };
+
+  app.get('/api/mak/status', async () => ({ available: MAK_DECK.length > 0 }));
+
+  app.post('/api/mak', async (request) => {
+    const user = authUser(request);
+    const body = makBody.safeParse(request.body);
+    if (!body.success) throw new HttpError(400, 'bad_request');
+    if (!MAK_DECK.length) throw new HttpError(503, 'mak_unavailable');
+    consume(user, 'mak');
+    const card = drawMakCard(recentMakCards(user.id, 12));
+    const session = { id: randomUUID(), userId: user.id, question: body.data.question, card: card.id };
+    createMak(session);
+    return { session: makView({ ...session, answers: [] }), limits: limitsOf(user) };
+  });
+
+  app.get('/api/mak/:id', async (request) => {
+    const user = authUser(request);
+    const params = idParams.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'bad_request');
+    return { session: makView(ownedMak(user, params.data.id)) };
+  });
+
+  app.put('/api/mak/:id/answers', async (request) => {
+    const user = authUser(request);
+    const params = idParams.safeParse(request.params);
+    const body = makAnswersBody.safeParse(request.body);
+    if (!params.success || !body.success) throw new HttpError(400, 'bad_request');
+    const session = ownedMak(user, params.data.id);
+    setMakAnswers(session.id, body.data.answers);
+    return { session: makView({ ...session, answers: body.data.answers }) };
+  });
+
+  app.get('/api/mak/:id/reading', async (request, reply) => {
+    const user = authUser(request);
+    const params = idParams.safeParse(request.params);
+    if (!params.success) throw new HttpError(400, 'bad_request');
+    const session = ownedMak(user, params.data.id);
+    const card = makCardOf(session.card);
+    if (!card || session.answers.length !== MAK_QUESTIONS.length) throw new HttpError(409, 'not_ready');
+    return sendReading(reply, {
+      user,
+      kind: 'mak',
+      key: session.id,
+      prompt: makPrompt({
+        question: session.question,
+        card: { title: card.title, artist: card.artist, year: card.year, description: card.description },
+        answers: MAK_QUESTIONS.map((question, k) => ({ question, answer: session.answers[k] ?? '' }))
+      }),
+      fallback:
+        'Сейчас не получается подготовить итог. Перечитайте свои ответы: часто самое важное уже прозвучало в том, что вы увидели первым и что захотели изменить на картине.',
+      refresh: false,
+      maxTokens: 2400
+    });
   });
 
   app.get('/api/history', async (request) => {

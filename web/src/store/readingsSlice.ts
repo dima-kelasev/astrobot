@@ -3,7 +3,7 @@ import { codeOf, streamReading } from '../api/client';
 import { createAppAsyncThunk } from './hooks';
 import { birthChanged } from './profileSlice';
 
-export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question';
+export type ReadingKind = 'sky' | 'day' | 'spread' | 'natal' | 'natalPart' | 'asc' | 'why' | 'compat' | 'question' | 'mak';
 
 export type ReadingState = {
   key: string | null;
@@ -28,7 +28,8 @@ const initialState: ReadingsState = {
   asc: empty,
   why: empty,
   compat: empty,
-  question: empty
+  question: empty,
+  mak: empty
 };
 
 const readingChunk = createAction<{ kind: ReadingKind; key: string; requestId: string; delta: string }>('readings/chunk');

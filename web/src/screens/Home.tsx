@@ -7,7 +7,9 @@ import { askBirth, go, type Screen } from '../store/navSlice';
 import ui from '../styles/ui.module.css';
 import styles from './Home.module.css';
 
-type Tile = { screen: Screen; title: string; desc: string; free?: boolean; needsBirth?: boolean; feature?: 'spread' | 'partner' | 'why' };
+type Tile = { screen: Screen; title: string; desc: string; free?: boolean; needsBirth?: boolean; feature?: Feature };
+
+type Feature = 'spread' | 'partner' | 'why' | 'mak';
 
 const TILES: Tile[] = [
   { screen: 'sky', title: 'Гороскоп', desc: 'По Луне и транзитам к вашей карте', free: true, needsBirth: true },
@@ -15,7 +17,8 @@ const TILES: Tile[] = [
   { screen: 'topics', title: 'Расклады по темам', desc: 'Любовь, работа, выбор, сценарии', feature: 'spread' },
   { screen: 'why', title: 'Почему сейчас так?', desc: 'Что сейчас активно в вашей карте', needsBirth: true, feature: 'why' },
   { screen: 'asc', title: 'Асцендент', desc: 'Как вас видят люди', free: true, needsBirth: true },
-  { screen: 'compat', title: 'Совместимость', desc: 'Сильные и слабые стороны пары', needsBirth: true, feature: 'partner' }
+  { screen: 'compat', title: 'Совместимость', desc: 'Сильные и слабые стороны пары', needsBirth: true, feature: 'partner' },
+  { screen: 'mak', title: 'Метафорические карты', desc: 'Картина, ваш взгляд на неё и итог Фреи', feature: 'mak' }
 ];
 
 const SIGN_GLYPHS = ['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'];
@@ -46,7 +49,7 @@ type Status = { status: FreeStatus; left: number };
 
 const LOCKED = { kind: 'locked', text: 'по подписке' } as const;
 
-const tagFor = (tile: Tile, payments: boolean, subscribed: boolean, statuses: Record<'spread' | 'partner' | 'why', Status>) => {
+const tagFor = (tile: Tile, payments: boolean, subscribed: boolean, statuses: Record<Feature, Status>) => {
   if (subscribed) return null;
   if (tile.free) return { kind: 'free', text: 'бесплатно' } as const;
   if (!payments) return null;
@@ -64,10 +67,12 @@ export const Home = () => {
   const spread = useFree('spread');
   const partner = useFree('partner');
   const why = useFree('why');
+  const mak = useFree('mak');
   if (!me) return null;
   const hasBirth = me.birth !== null;
   const { payments, subscribed } = me.access;
   const paid = payments && !subscribed;
+  const tiles = TILES.filter((tile) => tile.screen !== 'mak' || me.makAvailable);
 
   const open = (screen: Screen, needsBirth?: boolean) => {
     dispatch(needsBirth && !hasBirth ? askBirth(screen) : go(screen));
@@ -110,12 +115,12 @@ export const Home = () => {
             <span className={styles.heroAction}>Спросить →</span>
           </span>
         </button>
-        {TILES.map((tile, index) => {
-          const tag = tagFor(tile, payments, subscribed, { spread, partner, why });
+        {tiles.map((tile, index) => {
+          const tag = tagFor(tile, payments, subscribed, { spread, partner, why, mak });
           return (
             <button
               key={tile.screen}
-              className={cx(ui.glass, styles.tile, TILES.length % 2 === 1 && index === TILES.length - 1 && styles.full)}
+              className={cx(ui.glass, styles.tile, tiles.length % 2 === 1 && index === tiles.length - 1 && styles.full)}
               type="button"
               onClick={() => open(tile.screen, tile.needsBirth)}
             >

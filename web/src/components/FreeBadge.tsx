@@ -2,7 +2,7 @@ import { cx } from '../lib/cx';
 import { useAppSelector } from '../store/hooks';
 import styles from './FreeBadge.module.css';
 
-export type FreeFeature = 'question' | 'spread' | 'partner' | 'why';
+export type FreeFeature = 'question' | 'spread' | 'partner' | 'why' | 'mak';
 
 export type FreeStatus = 'open' | 'free' | 'locked';
 
@@ -10,7 +10,8 @@ const FORMS: Record<FreeFeature, readonly [string, string, string]> = {
   question: ['вопрос', 'вопроса', 'вопросов'],
   spread: ['расклад', 'расклада', 'раскладов'],
   partner: ['совместимость', 'совместимости', 'совместимостей'],
-  why: ['разбор', 'разбора', 'разборов']
+  why: ['разбор', 'разбора', 'разборов'],
+  mak: ['сессия', 'сессии', 'сессий']
 };
 
 const plural = (n: number, forms: readonly [string, string, string]) => {

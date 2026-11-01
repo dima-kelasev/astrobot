@@ -1,7 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export const TABS = ['home', 'sky', 'history', 'profile'] as const;
-export const SUB_SCREENS = ['ask', 'day', 'topics', 'tarot', 'question', 'natal', 'asc', 'why', 'compat', 'partner', 'historyItem', 'birth', 'plan'] as const;
+export const SUB_SCREENS = ['ask', 'day', 'topics', 'tarot', 'question', 'natal', 'asc', 'why', 'compat', 'partner', 'historyItem', 'birth', 'plan', 'mak'] as const;
 
 export type Tab = (typeof TABS)[number];
 export type SubScreen = (typeof SUB_SCREENS)[number];
@@ -20,7 +20,8 @@ const PARENT: Record<SubScreen, Screen> = {
   partner: 'compat',
   historyItem: 'history',
   birth: 'profile',
-  plan: 'profile'
+  plan: 'profile',
+  mak: 'home'
 };
 
 export const isTab = (screen: Screen): screen is Tab => TABS.some((tab) => tab === screen);

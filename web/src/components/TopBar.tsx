@@ -16,7 +16,8 @@ const SUB_TITLES: Record<string, string> = {
   partner: 'Совместимость',
   historyItem: 'История',
   birth: 'Данные рождения',
-  plan: 'Подписка'
+  plan: 'Подписка',
+  mak: 'Метафорические карты'
 };
 
 export const TopBar = () => {
