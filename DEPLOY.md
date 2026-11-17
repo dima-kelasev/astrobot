@@ -173,6 +173,32 @@ certbot --nginx -d astro.nordvale.org
 
 В @BotFather: ваш бот → Mini Apps → Main App → адрес `https://astro.nordvale.org/app/`. Кнопку меню бот обновит сам при запуске. Откройте бота и отправьте `/start`.
 
+## 10. MAX (опционально)
+
+Бот работает и в мессенджере MAX. Если `MAX_BOT_TOKEN` не задан, эта часть просто выключена.
+
+Подготовка:
+
+1. Верифицируйте организацию на dev.max.ru (нужно юрлицо или ИП — резидент РФ, проверка до 48 часов).
+2. Создайте бота через @MasterBot в MAX (`/create`), получите токен (`/get_token`). Подключите мини-приложение командой `/set_app` с адресом `https://astro.nordvale.org/app/`.
+3. Скачайте корневой сертификат Минцифры (Russian Trusted Root CA) с сайта https://www.gosuslugi.ru/tls и положите на сервер как `/usr/local/share/ca-certificates/mincifra-root.crt` в PEM-формате. Если файл в DER (`ca.cer`), конвертируйте:
+
+```bash
+openssl x509 -inform DER -in ca.cer -out /usr/local/share/ca-certificates/mincifra-root.crt
+```
+
+PM2 сам подхватит сертификат через `NODE_EXTRA_CA_CERTS` при следующем перезапуске.
+
+Настройки в `.env`:
+
+```
+MAX_BOT_TOKEN=токен бота MAX
+MAX_BOT_USERNAME=имя бота в MAX без @
+MAX_API=https://platform-api2.max.ru
+```
+
+После `pm2 restart astrobot` в журнале должна появиться строка «MAX-бот запущен». Ссылки для блогеров в MAX выглядят как `https://max.ru/<бот>?start=promo_КОД` — команда `/promos` в Telegram показывает сразу обе ссылки.
+
 ## Обновление
 
 На своём компьютере: `git add . && git commit -m "что изменилось" && git push`.

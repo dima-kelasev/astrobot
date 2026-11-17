@@ -1,9 +1,12 @@
 import { startBackup } from './backup.js';
-import { createBot, runBot, sendAdminPaid, sendBackup, sendNotification, sendPaid, sendPersonal } from './bot.js';
-import { closeDb } from './db.js';
+import { createBot, runBot, sendAdminPaid, sendBackup } from './bot.js';
+import { dateText } from './botcore.js';
+import { closeDb, getUser } from './db.js';
 import { adminIds, env, fastModel, llmReady, yookassaReady } from './env.js';
 import { createApp, onPaid, startPaymentSweeper } from './http.js';
+import { MaxClient, runMaxBot } from './max.js';
 import { startNotifier, startPersonal } from './notifier.js';
+import { openButtons, registerMax, registerTelegram, screenButton, sendToUser, slotButtons } from './sendout.js';
 
 const paymentsOn = env.PAYMENTS_ENABLED && yookassaReady;
 
@@ -22,27 +25,47 @@ if (env.DEV_USER_ID) console.warn(`Режим разработки: вход б�
 const stopSweeper = startPaymentSweeper();
 
 let stopBot = () => {};
+let stopMax = () => {};
 let stopNotifier = () => {};
 let stopBackup = () => {};
 
-if (env.BOT_TOKEN) {
-  const bot = createBot();
-  stopBot = runBot(bot);
-  stopNotifier = startNotifier((user, slot, text) => sendNotification(bot, user, slot, text));
+const tgBot = env.BOT_TOKEN ? createBot() : null;
+
+if (tgBot) {
+  stopBot = runBot(tgBot);
+  registerTelegram(tgBot);
+} else {
+  console.warn('BOT_TOKEN не задан: Telegram-бот не запущен.');
+}
+
+if (env.MAX_BOT_TOKEN) {
+  const client = new MaxClient();
+  registerMax(client);
+  stopMax = runMaxBot(client);
+} else {
+  console.log('MAX_BOT_TOKEN не задан: MAX-бот выключен.');
+}
+
+if (tgBot || env.MAX_BOT_TOKEN) {
+  stopNotifier = startNotifier((user, slot, text) => sendToUser(user, text, slotButtons(slot)));
   onPaid((event) => {
-    void sendPaid(bot, event);
-    void sendAdminPaid(bot, event);
+    const user = getUser(event.userId);
+    const text = event.until ? `Оплата прошла. ${event.title}: доступ открыт до ${dateText(event.until)}.` : `Оплата прошла. ${event.title}: уже открыто.`;
+    if (user) void sendToUser(user, text, openButtons());
+    if (tgBot) void sendAdminPaid(tgBot, event);
   });
-  const stopPersonal = startPersonal((userId, text, screen) => sendPersonal(bot, userId, text, screen));
+  const stopPersonal = startPersonal((userId, text, screen) => {
+    const user = getUser(userId);
+    return user ? sendToUser(user, text, screenButton(screen)) : Promise.resolve('failed' as const);
+  });
   const stopOld = stopNotifier;
   stopNotifier = () => {
     stopOld();
     stopPersonal();
   };
-  if (adminIds.length) stopBackup = startBackup((file) => sendBackup(bot, file));
+  if (tgBot && adminIds.length) stopBackup = startBackup((file) => sendBackup(tgBot, file));
+  else if (!tgBot) console.warn('Telegram-бот не запущен: ежедневная отправка бэкапов выключена.');
   else console.warn('ADMIN_IDS не задан: ежедневная отправка бэкапов выключена.');
-} else {
-  console.warn('BOT_TOKEN не задан: бот не запущен, работает только сайт.');
 }
 
 const shutdown = async () => {
@@ -50,6 +73,7 @@ const shutdown = async () => {
   stopNotifier();
   stopBackup();
   stopBot();
+  stopMax();
   await app.close();
   closeDb();
   process.exit(0);

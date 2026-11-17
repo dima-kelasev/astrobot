@@ -139,6 +139,12 @@ db.exec(`
     text TEXT NOT NULL,
     PRIMARY KEY (day, slot)
   );
+  CREATE TABLE IF NOT EXISTS external_ids (
+    platform TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (platform, external_id)
+  );
 `);
 
 const columnRow = z.object({ name: z.string() });
@@ -167,7 +173,8 @@ addColumns('users', [
   ['last_evening_day', 'TEXT'],
   ['email', 'TEXT'],
   ['username', 'TEXT'],
-  ['ref_promo', 'TEXT']
+  ['ref_promo', 'TEXT'],
+  ['platform', "TEXT NOT NULL DEFAULT 'tg'"]
 ]);
 addColumns('payments', [['promo', 'TEXT']]);
 addColumns('spreads', [
@@ -191,6 +198,7 @@ const userRow = z.object({
   credits: z.number(),
   subscribed_until: z.string().nullable(),
   email: z.string().nullable(),
+  platform: z.string().default('tg'),
   created_at: z.string()
 });
 
@@ -236,6 +244,8 @@ const picksSchema = z.array(z.number());
 const countRow = z.object({ n: z.number() });
 const textRow = z.object({ text: z.string() });
 
+export type Platform = 'tg' | 'max';
+
 export type User = {
   id: number;
   firstName: string;
@@ -248,6 +258,7 @@ export type User = {
   credits: number;
   subscribedUntil: string | null;
   email: string | null;
+  platform: Platform;
 };
 
 export type Spread = {
@@ -301,7 +312,8 @@ const toUser = (row: unknown): User | null => {
     notifyEvening: r.notify_evening === 1,
     credits: r.credits,
     subscribedUntil: r.subscribed_until,
-    email: r.email
+    email: r.email,
+    platform: r.platform === 'max' ? 'max' : 'tg'
   };
 };
 
@@ -337,14 +349,45 @@ const now = () => new Date().toISOString();
 
 export const getUser = (id: number) => toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(id));
 
-export const upsertUser = (id: number, firstName: string, username: string | null = null): User => {
+export const upsertUser = (id: number, firstName: string, username: string | null = null, platform: Platform = 'tg'): User => {
   db.prepare(
-    `INSERT INTO users (id, first_name, username, created_at) VALUES (?, ?, ?, ?)
+    `INSERT INTO users (id, first_name, username, created_at, platform) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET first_name = excluded.first_name, username = COALESCE(excluded.username, users.username)`
-  ).run(id, firstName, username, now());
+  ).run(id, firstName, username, now(), platform);
   const user = getUser(id);
   if (!user) throw new Error('user_not_saved');
   return user;
+};
+
+const SYNTHETIC_ID_BASE = 1_000_000_000_000_000;
+
+const maxIdRow = z.object({ n: z.number().nullable() });
+
+const nextSyntheticId = () => {
+  const row = maxIdRow.parse(db.prepare('SELECT MAX(id) AS n FROM users').get());
+  return Math.max(SYNTHETIC_ID_BASE, (row.n ?? 0) + 1);
+};
+
+const externalRow = z.object({ user_id: z.number() });
+
+export const resolveExternalUser = (platform: Platform, externalId: string, firstName: string, username: string | null): User => {
+  const found = externalRow.safeParse(db.prepare('SELECT user_id FROM external_ids WHERE platform = ? AND external_id = ?').get(platform, externalId));
+  if (found.success) return upsertUser(found.data.user_id, firstName, username, platform);
+  const id = nextSyntheticId();
+  const user = upsertUser(id, firstName, username, platform);
+  db.prepare('INSERT INTO external_ids (platform, external_id, user_id) VALUES (?, ?, ?)').run(platform, externalId, id);
+  return user;
+};
+
+export const internalIdOf = (platform: Platform, externalId: string): number | null => {
+  const row = externalRow.safeParse(db.prepare('SELECT user_id FROM external_ids WHERE platform = ? AND external_id = ?').get(platform, externalId));
+  return row.success ? row.data.user_id : null;
+};
+
+export const externalIdOf = (userId: number): string | null => {
+  const row = db.prepare("SELECT external_id FROM external_ids WHERE platform = 'max' AND user_id = ?").get(userId);
+  const parsed = z.object({ external_id: z.string() }).safeParse(row);
+  return parsed.success ? parsed.data.external_id : null;
 };
 
 export const setConsent = (id: number) => {
@@ -417,6 +460,7 @@ export const deleteUserData = (id: number) => {
   for (const table of ['readings', 'spreads', 'questions', 'partners', 'usage', 'day_cards', 'mak_sessions']) {
     db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(id);
   }
+  db.prepare('DELETE FROM external_ids WHERE user_id = ?').run(id);
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
 };
 

@@ -31,6 +31,7 @@ import {
   markPaymentCanceled,
   pendingPayments,
   recentMakCards,
+  resolveExternalUser,
   openDay,
   saveReading,
   setBirth,
@@ -47,7 +48,7 @@ import {
   type ReadingKind,
   type User
 } from './db.js';
-import { env, fastModel, llmReady, privacyUrl, siteDist, webDist, yookassaReady } from './env.js';
+import { env, fastModel, llmReady, maxPaymentReturnUrl, privacyUrl, siteDist, webDist, yookassaReady } from './env.js';
 import { placeById, searchCities, type Place } from './geo.js';
 import { METHODS, PRODUCTS, PRODUCT_KEYS, PaymentError, createRemotePayment, discounted, fetchRemotePayment, type ProductKey } from './payments.js';
 import { discountOf, usePromo } from './promo.js';
@@ -147,13 +148,21 @@ const today = () => dayKey(env.APP_TZ);
 const noonToday = () => noonOf(today(), env.APP_TZ);
 
 const authUser = (request: FastifyRequest): User => {
-  const header = request.headers['x-telegram-init-data'];
-  const tg = validateInitData(typeof header === 'string' ? header : '', env.BOT_TOKEN);
-  const id = tg?.id ?? env.DEV_USER_ID;
-  if (!id) throw new HttpError(401, 'unauthorized');
-  const firstName = tg?.firstName ?? 'Разработчик';
-  const existing = getUser(id);
-  return existing && existing.firstName === firstName ? existing : upsertUser(id, firstName, tg?.username ?? null);
+  const tgHeader = request.headers['x-telegram-init-data'];
+  const tg = validateInitData(typeof tgHeader === 'string' ? tgHeader : '', env.BOT_TOKEN);
+  if (tg) {
+    const firstName = tg.firstName ?? '';
+    const existing = getUser(tg.id);
+    return existing && existing.firstName === firstName ? existing : upsertUser(tg.id, firstName, tg.username ?? null);
+  }
+  const maxHeader = request.headers['x-max-init-data'];
+  const mx = validateInitData(typeof maxHeader === 'string' ? maxHeader : '', env.MAX_BOT_TOKEN);
+  if (mx) return resolveExternalUser('max', String(mx.id), mx.firstName ?? '', mx.username ?? null);
+  if (env.DEV_USER_ID) {
+    const existing = getUser(env.DEV_USER_ID);
+    return existing && existing.firstName === 'Разработчик' ? existing : upsertUser(env.DEV_USER_ID, 'Разработчик', null);
+  }
+  throw new HttpError(401, 'unauthorized');
 };
 
 const FEATURES = ['spread', 'question', 'partner', 'mak'] as const;
@@ -1088,7 +1097,8 @@ export const createApp = async () => {
         email: user.email,
         method: body.data.method,
         description,
-        amount
+        amount,
+        returnUrl: user.platform === 'max' ? maxPaymentReturnUrl : undefined
       });
       createPayment({ id: remote.id, userId: user.id, product: body.data.product, ref, amount, promo: discount?.code ?? null });
       return { id: remote.id, url: remote.url };

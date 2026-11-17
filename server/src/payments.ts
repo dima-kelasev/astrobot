@@ -93,6 +93,7 @@ export const createRemotePayment = async (input: {
   method: Method;
   description: string;
   amount: number;
+  returnUrl?: string;
 }) => {
   const product = PRODUCTS[input.product];
   const methodData = METHOD_DATA[input.method];
@@ -101,7 +102,7 @@ export const createRemotePayment = async (input: {
     body: {
       amount: money(input.amount),
       capture: true,
-      confirmation: { type: 'redirect', return_url: paymentReturnUrl },
+      confirmation: { type: 'redirect', return_url: input.returnUrl ?? paymentReturnUrl },
       description: `Фрея: ${input.description}`.slice(0, 128),
       metadata: { userId: String(input.userId), product: input.product, ref: input.ref },
       ...(methodData ? { payment_method_data: methodData } : {}),

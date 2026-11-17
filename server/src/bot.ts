@@ -2,30 +2,26 @@ import type { Agent } from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Markup, Telegraf, TelegramError } from 'telegraf';
-import {
-  adminStats,
-  buyerOf,
-  createPromo,
-  deleteUserData,
-  getPayment,
-  getPromo,
-  getUser,
-  grantRefs,
-  promoStats,
-  recentSales,
-  setPromoActive,
-  subscriptionUntil,
-  upsertUser,
-  type PromoKind,
-  type SalesSum,
-  type Slot,
-  type User
-} from './db.js';
 import { makeBackup, type BackupFile } from './backup.js';
+import {
+  DELETE_CANCEL_TEXT,
+  DELETE_DONE_TEXT,
+  DELETE_TEXT,
+  WELCOME,
+  createPromoText,
+  dateText,
+  escapeHtml,
+  isAdmin,
+  personLink,
+  promosText,
+  rub,
+  salesText,
+  startReply,
+  statsText,
+  togglePromoText
+} from './botcore.js';
+import { buyerOf, deleteUserData, getPayment, getPromo, getUser, upsertUser, type Slot, type User } from './db.js';
 import { adminIds, env, privacyUrl } from './env.js';
-import { PRODUCTS, PRODUCT_KEYS, PROMO_CODE, normalizePromo } from './payments.js';
-import { daysWord, promoText, usePromo } from './promo.js';
-import { dayKey, noonOf } from './time.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
@@ -47,29 +43,6 @@ const slotKeyboard = (slot: Slot) =>
     ? Markup.inlineKeyboard([[Markup.button.webApp('Гороскоп на сегодня', appUrl('sky'))], [Markup.button.webApp('Карта дня', appUrl('day'))]])
     : Markup.inlineKeyboard([Markup.button.webApp('Разложить карты', appUrl('topics'))]);
 
-const WELCOME = [
-  'Здравствуйте! Я Фрея 🌙 Читаю звёзды и карты Таро.',
-  '',
-  'Что у меня есть для вас:',
-  '🔮 ответ на ваш вопрос раскладом Таро или по натальной карте',
-  '🪐 натальная карта, асцендент и «Почему сейчас так?»',
-  '💞 совместимость пары',
-  '🃏 расклады по темам: любовь, работа, трудный выбор',
-  '☀️ гороскоп и карта дня каждый день',
-  '',
-  '✨ Утром и вечером я присылаю короткое сообщение. Отключить можно в профиле.'
-].join('\n');
-
-const dateText = (iso: string) =>
-  new Intl.DateTimeFormat('ru-RU', { timeZone: env.APP_TZ, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso));
-
-const paidStatus = (userId: number) => {
-  const until = subscriptionUntil(userId);
-  if (until && until > new Date().toISOString()) return `Спасибо! Подписка активна до ${dateText(until)}. Всё уже открыто.`;
-  if (grantRefs(userId, 'natal').length || grantRefs(userId, 'compat').length) return 'Спасибо! Покупка уже открыта.';
-  return 'Платёж ещё обрабатывается. Обычно это занимает до минуты. Если через несколько минут ничего не изменится, напишите на почту из политики конфиденциальности.';
-};
-
 export const sendPaid = async (bot: Telegraf, event: { userId: number; title: string; until: string | null }) => {
   const text = event.until ? `Оплата прошла. ${event.title}: доступ открыт до ${dateText(event.until)}.` : `Оплата прошла. ${event.title}: уже открыто.`;
   try {
@@ -77,69 +50,6 @@ export const sendPaid = async (bot: Telegraf, event: { userId: number; title: st
   } catch (error) {
     console.error('Не удалось сообщить об оплате:', reasonOf(error));
   }
-};
-
-const isAdmin = (id: number) => adminIds.includes(id);
-
-const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-const rub = (amount: number) => `${new Intl.NumberFormat('ru-RU').format(amount)} ₽`;
-
-const dateTimeText = (iso: string) =>
-  new Intl.DateTimeFormat('ru-RU', { timeZone: env.APP_TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
-
-const productTitle = (key: string) => {
-  const found = PRODUCT_KEYS.find((item) => item === key);
-  return found ? PRODUCTS[found].title : key;
-};
-
-const personLink = (userId: number, firstName: string, username: string | null) => {
-  const name = escapeHtml(firstName || 'Без имени');
-  return `<a href="tg://user?id=${userId}">${name}</a>${username ? ` @${escapeHtml(username)}` : ''}`;
-};
-
-const DAY_MS = 86400000;
-
-const statsText = () => {
-  const day = dayKey(env.APP_TZ);
-  const now = Date.now();
-  const stats = adminStats({
-    today: day,
-    todayIso: new Date(noonOf(day, env.APP_TZ).getTime() - DAY_MS / 2).toISOString(),
-    weekDay: dayKey(env.APP_TZ, new Date(now - 7 * DAY_MS)),
-    weekIso: new Date(now - 7 * DAY_MS).toISOString(),
-    monthIso: new Date(now - 30 * DAY_MS).toISOString()
-  });
-  const sales = (label: string, value: SalesSum) => `${label}: ${value.count} на ${rub(value.sum)}`;
-  return [
-    '<b>Пользователи</b>',
-    `Всего: ${stats.users}`,
-    `Новых сегодня: ${stats.newToday}, за 7 дней: ${stats.newWeek}, за 30 дней: ${stats.newMonth}`,
-    `Заходили сегодня: ${stats.activeToday}, за 7 дней: ${stats.activeWeek}`,
-    `Ввели данные рождения: ${stats.withBirth}`,
-    `Получают рассылку: ${stats.notified}`,
-    '',
-    '<b>Деньги</b>',
-    `Активных подписок: ${stats.subscribers}`,
-    sales('Сегодня', stats.salesToday),
-    sales('За 7 дней', stats.salesWeek),
-    sales('За 30 дней', stats.salesMonth),
-    sales('За всё время', stats.salesAll),
-    '',
-    'Последние покупки: /sales'
-  ].join('\n');
-};
-
-const salesText = () => {
-  const sales = recentSales(15);
-  if (!sales.length) return 'Покупок пока нет.';
-  return [
-    '<b>Последние покупки</b>',
-    ...sales.map(
-      (sale) =>
-        `${dateTimeText(sale.paidAt)} · ${rub(sale.amount)} · ${escapeHtml(productTitle(sale.product))}\n${personLink(sale.userId, sale.firstName, sale.username)}`
-    )
-  ].join('\n\n');
 };
 
 export const sendAdminPaid = async (bot: Telegraf, event: { paymentId: string; userId: number; title: string; amount: number; until: string | null }) => {
@@ -166,8 +76,6 @@ export const sendAdminPaid = async (bot: Telegraf, event: { paymentId: string; u
   }
 };
 
-const promoLabel = (kind: PromoKind, value: number) => (kind === 'discount' ? `скидка ${value}%` : `${value} ${daysWord(value)} подписки`);
-
 export const sendBackup = async (bot: Telegraf, file: BackupFile) => {
   const caption = `Резервная копия базы · ${file.sizeKb} КБ (gzip)`;
   for (const adminId of adminIds) {
@@ -178,62 +86,6 @@ export const sendBackup = async (bot: Telegraf, file: BackupFile) => {
     }
   }
 };
-
-const promoLink = (username: string | undefined, code: string) => (username ? `https://t.me/${username}?start=promo_${code}` : `/start promo_${code}`);
-
-const promosText = (username: string | undefined) => {
-  const stats = promoStats();
-  const help = [
-    '<b>Как создать</b>',
-    '<code>/promo_new ANNA 20%</code> — скидка 20% на одну покупку',
-    '<code>/promo_new ANNA 30d</code> — 30 дней подписки бесплатно',
-    '<code>/promo_new ANNA 20% 100</code> — то же, но только 100 активаций',
-    '<code>/promo_off ANNA</code> и <code>/promo_on ANNA</code> — выключить и включить'
-  ].join('\n');
-  if (!stats.length) return `Промокодов пока нет.\n\n${help}`;
-  const blocks = stats.map((promo) =>
-    [
-      `<b>${escapeHtml(promo.code)}</b> — ${promoLabel(promo.kind, promo.value)}${promo.active ? '' : ' · выключен'}`,
-      `Применили: ${promo.uses}${promo.maxUses !== null ? ` из ${promo.maxUses}` : ''}${promo.kind === 'discount' ? ` · купили со скидкой: ${promo.discounted}` : ''}`,
-      `Пришли по коду и заплатили: ${promo.buyers} на ${rub(promo.revenue)}`,
-      promoLink(username, promo.code)
-    ].join('\n')
-  );
-  return [...blocks, help].join('\n\n');
-};
-
-const NEW_PROMO = /^([A-Za-z0-9_-]+)\s+(\d+)\s*(%|d|д|дн|дней)?(?:\s+(\d+))?$/i;
-
-const createPromoText = (args: string, username: string | undefined) => {
-  const match = NEW_PROMO.exec(args.trim());
-  if (!match) return 'Не понял. Пример: <code>/promo_new ANNA 20%</code> или <code>/promo_new ANNA 30d 100</code>';
-  const code = normalizePromo(match[1]);
-  const value = Number(match[2]);
-  const kind: PromoKind = match[3] && match[3] !== '%' ? 'days' : 'discount';
-  const maxUses = match[4] ? Number(match[4]) : null;
-  if (!PROMO_CODE.test(code)) return 'Код — от 3 до 32 латинских букв, цифр, _ или -.';
-  if (kind === 'discount' && (value < 1 || value > 90)) return 'Скидка может быть от 1 до 90%.';
-  if (kind === 'days' && (value < 1 || value > 365)) return 'Дней может быть от 1 до 365.';
-  if (maxUses !== null && maxUses < 1) return 'Лимит активаций должен быть больше нуля.';
-  if (!createPromo({ code, kind, value, maxUses })) return `Код ${escapeHtml(code)} уже есть. Посмотреть все: /promos`;
-  return [
-    `Готово: <b>${escapeHtml(code)}</b> — ${promoLabel(kind, value)}${maxUses !== null ? `, лимит ${maxUses}` : ''}.`,
-    '',
-    'Ссылка для блогера, по ней код применится сам:',
-    promoLink(username, code),
-    '',
-    'Ещё код можно ввести вручную в мини-аппе: в Профиле или на экране подписки.'
-  ].join('\n');
-};
-
-const togglePromoText = (raw: string, active: boolean) => {
-  const code = normalizePromo(raw);
-  if (!code) return `Укажите код: /promo_${active ? 'on' : 'off'} ANNA`;
-  if (!setPromoActive(code, active)) return `Кода ${code} нет. Список: /promos`;
-  return active ? `${code} снова работает.` : `${code} выключен. Уже выданные скидки и дни остаются у людей.`;
-};
-
-const DELETE_TEXT = 'Удалить все ваши данные: дату, время и место рождения, расклады, историю и данные партнёров? Это нельзя отменить.';
 
 const proxyAgent = (): Agent | undefined => {
   if (!env.TELEGRAM_PROXY) return undefined;
@@ -259,21 +111,15 @@ export const createBot = () => {
 
   bot.start(async (ctx) => {
     const known = getUser(ctx.from.id) !== null;
-    upsertUser(ctx.from.id, ctx.from.first_name, ctx.from.username ?? null);
-    if (ctx.payload.startsWith('promo_')) {
-      const outcome = usePromo(ctx.from.id, ctx.payload);
-      const result = promoText(outcome, dateText);
-      const text = known ? result : `${WELCOME}\n\n${result}`;
-      if (hasWebApp) await ctx.reply(text, Markup.inlineKeyboard([Markup.button.webApp('Открыть Фрею', appUrl(outcome.ok ? 'plan' : undefined))]));
-      else await ctx.reply(text);
+    const user = upsertUser(ctx.from.id, ctx.from.first_name, ctx.from.username ?? null);
+    const reply = startReply(user.id, ctx.payload, known);
+    if (reply.screen || hasWebApp) {
+      const screen = reply.screen;
+      const url = appUrl(screen);
+      await ctx.reply(reply.text, Markup.inlineKeyboard([Markup.button.webApp('Открыть Фрею', url)]));
       return;
     }
-    if (ctx.payload === 'paid') {
-      await ctx.reply(paidStatus(ctx.from.id), hasWebApp ? openKeyboard() : undefined);
-      return;
-    }
-    if (hasWebApp) await ctx.reply(WELCOME, openKeyboard());
-    else await ctx.reply(`${WELCOME}\n\nМини-апп пока не подключён: в настройках сервера не задан адрес WEBAPP_URL.`);
+    await ctx.reply(reply.text);
   });
 
   bot.help(async (ctx) => {
@@ -300,12 +146,12 @@ export const createBot = () => {
 
   bot.command('promos', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
-    await ctx.reply(promosText(ctx.botInfo.username), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    await ctx.reply(promosText(), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   });
 
   bot.command('promo_new', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
-    await ctx.reply(createPromoText(ctx.payload, ctx.botInfo.username), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    await ctx.reply(createPromoText(ctx.payload), { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   });
 
   bot.command('promo_off', async (ctx) => {
@@ -339,12 +185,12 @@ export const createBot = () => {
   bot.action('delete_confirm', async (ctx) => {
     deleteUserData(ctx.from.id);
     await ctx.answerCbQuery();
-    await ctx.editMessageText('Ваши данные удалены. Если снова откроете бота, начнём с чистого листа.');
+    await ctx.editMessageText(DELETE_DONE_TEXT);
   });
 
   bot.action('delete_cancel', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.editMessageText('Удаление отменено.');
+    await ctx.editMessageText(DELETE_CANCEL_TEXT);
   });
 
   bot.catch((error) => {
@@ -437,7 +283,7 @@ export const sendPersonal = async (bot: Telegraf, userId: number, text: string, 
     return 'sent';
   } catch (error) {
     if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) return 'blocked';
-    console.error(`Не удалось отправить личное уведомление ${userId}:`, error);
+    console.error(`Не удалось отправить личное уведомление ${userId}:`, reasonOf(error));
     return 'failed';
   }
 };

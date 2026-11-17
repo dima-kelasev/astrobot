@@ -47,6 +47,9 @@ const schema = z.object({
   FREE_MAK: z.coerce.number().int().min(0).default(1),
   LIMIT_MAK: z.coerce.number().int().min(0).default(3),
   ADMIN_IDS: z.string().default(''),
+  MAX_BOT_TOKEN: z.string().default(''),
+  MAX_BOT_USERNAME: z.string().default(''),
+  MAX_API: z.string().default('https://platform-api2.max.ru'),
   DEV_USER_ID: z.coerce.number().int().positive().optional()
 });
 
@@ -78,4 +81,10 @@ export const yookassaReady = Boolean(env.YOOKASSA_SHOP_ID && env.YOOKASSA_SECRET
 
 const botName = env.BOT_USERNAME.replace(/^@/, '');
 
+export const tgBotName = botName;
+export const maxBotName = env.MAX_BOT_USERNAME.replace(/^@/, '');
+
 export const paymentReturnUrl = env.PAYMENT_RETURN_URL || (botName ? `https://t.me/${botName}?start=paid` : siteOrigin || 'https://t.me');
+export const maxPaymentReturnUrl = env.PAYMENT_RETURN_URL || (maxBotName ? `https://max.ru/${maxBotName}?start=paid` : paymentReturnUrl);
+
+export const maxReady = Boolean(env.MAX_BOT_TOKEN);

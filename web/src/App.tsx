@@ -87,11 +87,20 @@ export const App = () => {
   const Current = SCREENS[screen];
 
   useEffect(() => {
-    telegram.ready();
-    const start = startScreen();
-    if (start) dispatch(go(start));
-    const request = dispatch(fetchMe());
-    return () => request.abort();
+    let aborted = false;
+    let request: { abort: () => void } | null = null;
+    void (async () => {
+      await telegram.init();
+      if (aborted) return;
+      telegram.ready();
+      const start = startScreen();
+      if (start) dispatch(go(start));
+      request = dispatch(fetchMe());
+    })();
+    return () => {
+      aborted = true;
+      request?.abort();
+    };
   }, [dispatch]);
 
   useEffect(() => {
@@ -111,7 +120,7 @@ export const App = () => {
         {ready && <TopBar />}
         <main>
           {status === 'error' && errorCode === 'unauthorized' && (
-            <Message title="Откройте в Telegram" text="Мини-апп работает внутри Telegram. Найдите бота и нажмите кнопку «Открыть»." />
+            <Message title="Откройте в мессенджере" text="Мини-апп работает внутри Telegram и MAX. Найдите бота и нажмите кнопку «Открыть»." />
           )}
           {status === 'error' && errorCode !== 'unauthorized' && (
             <Message title="Нет связи" text="Не получилось загрузить данные. Проверьте интернет и откройте мини-апп ещё раз." />

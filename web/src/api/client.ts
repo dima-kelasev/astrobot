@@ -47,7 +47,7 @@ type RequestOptions = { method?: string; body?: unknown; signal?: AbortSignal };
 const authHeaders = () => {
   const headers: Record<string, string> = {};
   const initData = telegram.initData();
-  if (initData) headers['X-Telegram-Init-Data'] = initData;
+  if (initData) headers[telegram.platform === 'max' ? 'X-Max-Init-Data' : 'X-Telegram-Init-Data'] = initData;
   return headers;
 };
 
