@@ -169,7 +169,7 @@ export const sendAdminPaid = async (bot: Telegraf, event: { paymentId: string; u
 const promoLabel = (kind: PromoKind, value: number) => (kind === 'discount' ? `скидка ${value}%` : `${value} ${daysWord(value)} подписки`);
 
 export const sendBackup = async (bot: Telegraf, file: BackupFile) => {
-  const caption = `Резервная копия базы · ${file.sizeKb} КБ`;
+  const caption = `Резервная копия базы · ${file.sizeKb} КБ (gzip)`;
   for (const adminId of adminIds) {
     try {
       await bot.telegram.sendDocument(adminId, { source: file.path, filename: file.filename }, { caption });
@@ -322,7 +322,7 @@ export const createBot = () => {
     if (!isAdmin(ctx.from.id)) return;
     try {
       const file = await makeBackup();
-      await ctx.replyWithDocument({ source: file.path, filename: file.filename }, { caption: `Резервная копия базы · ${file.sizeKb} КБ` });
+      await ctx.replyWithDocument({ source: file.path, filename: file.filename }, { caption: `Резервная копия базы · ${file.sizeKb} КБ (gzip)` });
     } catch (error) {
       console.error('Не удалось сделать бэкап по команде:', reasonOf(error));
       await ctx.reply('Не получилось сделать резервную копию. Подробности в журнале сервера.');

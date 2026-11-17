@@ -1,5 +1,8 @@
+import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { createGzip } from 'node:zlib';
 import { backupTo } from './db.js';
 import { env } from './env.js';
 import { dayKey, hourIn } from './time.js';
@@ -26,7 +29,7 @@ export type BackupFile = { path: string; filename: string; sizeKb: number };
 
 const rotate = async (dir: string) => {
   const files = (await readdir(dir))
-    .filter((name) => /^astrobot-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.db$/.test(name))
+    .filter((name) => /^astrobot-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.db\.gz$/.test(name))
     .sort();
   for (const name of files.slice(0, Math.max(0, files.length - KEEP))) {
     await unlink(join(dir, name)).catch(() => {});
@@ -36,9 +39,12 @@ const rotate = async (dir: string) => {
 export const makeBackup = async (now: Date = new Date()): Promise<BackupFile> => {
   const dir = backupDir();
   await mkdir(dir, { recursive: true });
-  const filename = `astrobot-${stamp(now)}.db`;
+  const filename = `astrobot-${stamp(now)}.db.gz`;
   const path = join(dir, filename);
-  backupTo(path);
+  const raw = join(dir, filename.replace(/\.gz$/, ''));
+  backupTo(raw);
+  await pipeline(createReadStream(raw), createGzip({ level: 9 }), createWriteStream(path));
+  await unlink(raw);
   const { size } = await stat(path);
   await rotate(dir);
   return { path, filename, sizeKb: Math.max(1, Math.round(size / 1024)) };
