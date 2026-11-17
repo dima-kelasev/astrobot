@@ -21,6 +21,7 @@ import {
   type Slot,
   type User
 } from './db.js';
+import { makeBackup, type BackupFile } from './backup.js';
 import { adminIds, env, privacyUrl } from './env.js';
 import { PRODUCTS, PRODUCT_KEYS, PROMO_CODE, normalizePromo } from './payments.js';
 import { daysWord, promoText, usePromo } from './promo.js';
@@ -167,6 +168,17 @@ export const sendAdminPaid = async (bot: Telegraf, event: { paymentId: string; u
 
 const promoLabel = (kind: PromoKind, value: number) => (kind === 'discount' ? `скидка ${value}%` : `${value} ${daysWord(value)} подписки`);
 
+export const sendBackup = async (bot: Telegraf, file: BackupFile) => {
+  const caption = `Резервная копия базы · ${file.sizeKb} КБ`;
+  for (const adminId of adminIds) {
+    try {
+      await bot.telegram.sendDocument(adminId, { source: file.path, filename: file.filename }, { caption });
+    } catch (error) {
+      console.error(`Не удалось отправить бэкап админу ${adminId}:`, reasonOf(error));
+    }
+  }
+};
+
 const promoLink = (username: string | undefined, code: string) => (username ? `https://t.me/${username}?start=promo_${code}` : `/start promo_${code}`);
 
 const promosText = (username: string | undefined) => {
@@ -306,6 +318,17 @@ export const createBot = () => {
     await ctx.reply(togglePromoText(ctx.payload, true));
   });
 
+  bot.command('backup', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    try {
+      const file = await makeBackup();
+      await ctx.replyWithDocument({ source: file.path, filename: file.filename }, { caption: `Резервная копия базы · ${file.sizeKb} КБ` });
+    } catch (error) {
+      console.error('Не удалось сделать бэкап по команде:', reasonOf(error));
+      await ctx.reply('Не получилось сделать резервную копию. Подробности в журнале сервера.');
+    }
+  });
+
   bot.command('delete', async (ctx) => {
     await ctx.reply(
       DELETE_TEXT,
@@ -342,7 +365,8 @@ const ADMIN_COMMANDS = [
   { command: 'stats', description: 'Статистика' },
   { command: 'sales', description: 'Последние покупки' },
   { command: 'promos', description: 'Промокоды' },
-  { command: 'promo_new', description: 'Создать промокод' }
+  { command: 'promo_new', description: 'Создать промокод' },
+  { command: 'backup', description: 'Резервная копия базы' }
 ];
 
 const setupBot = async (bot: Telegraf) => {

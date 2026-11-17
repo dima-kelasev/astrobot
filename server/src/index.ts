@@ -1,4 +1,5 @@
-import { createBot, runBot, sendAdminPaid, sendNotification, sendPaid, sendPersonal } from './bot.js';
+import { startBackup } from './backup.js';
+import { createBot, runBot, sendAdminPaid, sendBackup, sendNotification, sendPaid, sendPersonal } from './bot.js';
 import { closeDb } from './db.js';
 import { adminIds, env, fastModel, llmReady, yookassaReady } from './env.js';
 import { createApp, onPaid, startPaymentSweeper } from './http.js';
@@ -22,6 +23,7 @@ const stopSweeper = startPaymentSweeper();
 
 let stopBot = () => {};
 let stopNotifier = () => {};
+let stopBackup = () => {};
 
 if (env.BOT_TOKEN) {
   const bot = createBot();
@@ -37,6 +39,8 @@ if (env.BOT_TOKEN) {
     stopOld();
     stopPersonal();
   };
+  if (adminIds.length) stopBackup = startBackup((file) => sendBackup(bot, file));
+  else console.warn('ADMIN_IDS не задан: ежедневная отправка бэкапов выключена.');
 } else {
   console.warn('BOT_TOKEN не задан: бот не запущен, работает только сайт.');
 }
@@ -44,6 +48,7 @@ if (env.BOT_TOKEN) {
 const shutdown = async () => {
   stopSweeper();
   stopNotifier();
+  stopBackup();
   stopBot();
   await app.close();
   closeDb();

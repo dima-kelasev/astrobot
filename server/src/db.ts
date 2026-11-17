@@ -961,4 +961,8 @@ export const recentMakCards = (userId: number, limit: number) =>
     .all(userId, limit)
     .map((row) => cardRow.parse(row).card);
 
+export const backupTo = (path: string) => {
+  db.prepare('VACUUM INTO ?').run(path);
+};
+
 export const closeDb = () => db.close();

@@ -28,6 +28,7 @@ const schema = z.object({
     .transform((value) => value === '1' || value === 'true'),
   NOTIFY_HOUR: z.coerce.number().int().min(0).max(23).default(9),
   EVENING_HOUR: z.coerce.number().int().min(0).max(23).default(20),
+  BACKUP_HOUR: z.coerce.number().int().min(0).max(23).default(4),
   SITE_URL: z.string().default(''),
   BOT_USERNAME: z.string().default(''),
   YOOKASSA_SHOP_ID: z.string().default(''),
