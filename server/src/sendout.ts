@@ -29,12 +29,13 @@ const appUrl = (screen?: string) => {
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-const sendTg = async (userId: number, text: string, buttons: OutButton[]): Promise<SendResult> => {
+const sendTg = async (userId: number, text: string, buttons: OutButton[], photo: string | null): Promise<SendResult> => {
   if (!tg) return 'failed';
   try {
     const keyboard =
       hasWebApp && buttons.length ? Markup.inlineKeyboard(buttons.map((button) => Markup.button.webApp(button.text, appUrl(button.screen)))) : undefined;
-    await tg.telegram.sendMessage(userId, text, keyboard);
+    if (photo) await tg.telegram.sendPhoto(userId, photo, { caption: text || undefined, ...(keyboard ?? {}) });
+    else await tg.telegram.sendMessage(userId, text, keyboard);
     return 'sent';
   } catch (error) {
     if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) return 'blocked';
@@ -44,7 +45,7 @@ const sendTg = async (userId: number, text: string, buttons: OutButton[]): Promi
 };
 
 const sendMax = async (userId: number, text: string, buttons: OutButton[]): Promise<SendResult> => {
-  if (!max) return 'failed';
+  if (!max || !text) return 'failed';
   const external = externalIdOf(userId);
   if (!external) return 'failed';
   try {
@@ -59,8 +60,8 @@ const sendMax = async (userId: number, text: string, buttons: OutButton[]): Prom
   }
 };
 
-export const sendToUser = (user: User, text: string, buttons: OutButton[] = []): Promise<SendResult> =>
-  user.platform === 'max' ? sendMax(user.id, text, buttons) : sendTg(user.id, text, buttons);
+export const sendToUser = (user: User, text: string, buttons: OutButton[] = [], photo: string | null = null): Promise<SendResult> =>
+  user.platform === 'max' ? sendMax(user.id, text, buttons) : sendTg(user.id, text, buttons, photo);
 
 export const slotButtons = (slot: 'morning' | 'evening'): OutButton[] =>
   slot === 'morning' ? [{ text: 'Гороскоп на сегодня', screen: 'sky' }, { text: 'Карта дня', screen: 'day' }] : [{ text: 'Разложить карты', screen: 'topics' }];

@@ -176,19 +176,39 @@ export const createBot = () => {
     }
   });
 
-  const pendingBroadcast = new Map<number, string>();
+  type PendingBroadcast = { text: string; photo: string | null };
+  const pendingBroadcast = new Map<number, PendingBroadcast>();
   const broadcastSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   bot.command('broadcast', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
     const text = ctx.payload.trim();
     if (!text) {
-      await ctx.reply('Напишите текст после команды, например:\n/broadcast Добрый день! У нас новый раздел.');
+      await ctx.reply('Напишите текст после команды, например:\n/broadcast Добрый день! У нас новый раздел.\n\nМожно и с картинкой: пришлите фото с подписью /broadcast Текст');
       return;
     }
-    pendingBroadcast.set(ctx.from.id, text);
+    pendingBroadcast.set(ctx.from.id, { text, photo: null });
     const count = allUsers().length;
     await ctx.reply(`Отправить это сообщение всем пользователям (${count})?\n\n${escapeHtml(text)}`, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([Markup.button.callback('Отправить всем', 'broadcast_send'), Markup.button.callback('Отмена', 'broadcast_cancel')])
+    });
+  });
+
+  bot.on('photo', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const caption = ctx.message.caption?.trim() ?? '';
+    const match = /^\/broadcast(?:@[\w_]+)?\s*([\s\S]*)$/.exec(caption);
+    if (!match) return;
+    const photo = ctx.message.photo.at(-1)?.file_id;
+    if (!photo) return;
+    const text = match[1].trim();
+    pendingBroadcast.set(ctx.from.id, { text, photo });
+    const count = allUsers().length;
+    const question = `Отправить это фото${text ? ' с текстом' : ' без текста'} всем пользователям (${count})?`;
+    const preview = text ? `\n\n${escapeHtml(text)}` : '';
+    await ctx.replyWithPhoto(photo, {
+      caption: `${question}${preview}`.slice(0, 1000),
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([Markup.button.callback('Отправить всем', 'broadcast_send'), Markup.button.callback('Отмена', 'broadcast_cancel')])
     });
@@ -199,20 +219,20 @@ export const createBot = () => {
       await ctx.answerCbQuery();
       return;
     }
-    const text = pendingBroadcast.get(ctx.from.id);
+    const pending = pendingBroadcast.get(ctx.from.id);
     await ctx.answerCbQuery();
-    if (!text) {
-      await ctx.editMessageText('Текст рассылки потерян. Отправьте /broadcast ещё раз.');
+    if (!pending) {
+      await ctx.editMessageText('Текст рассылки потерян. Отправьте /broadcast ещё раз.').catch(() => {});
       return;
     }
     pendingBroadcast.delete(ctx.from.id);
-    await ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу.');
+    await ctx.editMessageCaption('Рассылка пошла. Пришлю отчёт, когда закончу.').catch(() => ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу.'));
     const users = allUsers();
     let sent = 0;
     let blocked = 0;
     let failed = 0;
     for (const user of users) {
-      const result = await sendToUser(user, text);
+      const result = await sendToUser(user, pending.text, [], pending.photo);
       if (result === 'sent') sent += 1;
       else if (result === 'blocked') {
         blocked += 1;
@@ -226,7 +246,7 @@ export const createBot = () => {
   bot.action('broadcast_cancel', async (ctx) => {
     pendingBroadcast.delete(ctx.from.id);
     await ctx.answerCbQuery();
-    await ctx.editMessageText('Рассылка отменена.');
+    await ctx.editMessageCaption('Рассылка отменена.').catch(() => ctx.editMessageText('Рассылка отменена.'));
   });
 
   bot.command('delete', async (ctx) => {
