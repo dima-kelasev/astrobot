@@ -145,6 +145,17 @@ db.exec(`
     user_id INTEGER NOT NULL,
     PRIMARY KEY (platform, external_id)
   );
+  CREATE TABLE IF NOT EXISTS broadcast_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS broadcast_messages (
+    post_id INTEGER NOT NULL,
+    platform TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    message_id TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS broadcast_messages_post ON broadcast_messages (post_id);
 `);
 
 const columnRow = z.object({ name: z.string() });
@@ -395,6 +406,39 @@ export const externalIdOf = (userId: number): string | null => {
   const row = db.prepare("SELECT external_id FROM external_ids WHERE platform = 'max' AND user_id = ?").get(userId);
   const parsed = z.object({ external_id: z.string() }).safeParse(row);
   return parsed.success ? parsed.data.external_id : null;
+};
+
+export const createBroadcastPost = () => {
+  const result = db.prepare('INSERT INTO broadcast_posts (created_at) VALUES (?)').run(now());
+  return Number(result.lastInsertRowid);
+};
+
+export const addBroadcastMessage = (postId: number, platform: Platform, chatId: string, messageId: string) => {
+  db.prepare('INSERT INTO broadcast_messages (post_id, platform, chat_id, message_id) VALUES (?, ?, ?, ?)').run(postId, platform, chatId, messageId);
+};
+
+export type BroadcastMessage = { platform: Platform; chatId: string; messageId: string };
+
+const broadcastMessageRow = z.object({ platform: z.string(), chat_id: z.string(), message_id: z.string() });
+
+const broadcastMessageParse = (row: unknown): BroadcastMessage => {
+  const r = broadcastMessageRow.parse(row);
+  return { platform: r.platform === 'max' ? 'max' : 'tg', chatId: r.chat_id, messageId: r.message_id };
+};
+
+export const lastBroadcastPost = (): { id: number; messages: BroadcastMessage[] } | null => {
+  const post = z.object({ id: z.number() }).safeParse(db.prepare('SELECT id FROM broadcast_posts ORDER BY id DESC LIMIT 1').get());
+  if (!post.success) return null;
+  const messages = db
+    .prepare('SELECT platform, chat_id, message_id FROM broadcast_messages WHERE post_id = ?')
+    .all(post.data.id)
+    .map((row) => broadcastMessageParse(row));
+  return { id: post.data.id, messages };
+};
+
+export const deleteBroadcastPost = (postId: number) => {
+  db.prepare('DELETE FROM broadcast_messages WHERE post_id = ?').run(postId);
+  db.prepare('DELETE FROM broadcast_posts WHERE id = ?').run(postId);
 };
 
 export const setConsent = (id: number) => {

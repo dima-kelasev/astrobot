@@ -20,9 +20,9 @@ import {
   statsText,
   togglePromoText
 } from './botcore.js';
-import { allUsers, buyerOf, deleteUserData, disableNotifications, getPayment, getPromo, getUser, upsertUser, type Slot, type User } from './db.js';
+import { allUsers, addBroadcastMessage, buyerOf, createBroadcastPost, deleteBroadcastPost, deleteUserData, disableNotifications, getPayment, getPromo, getUser, lastBroadcastPost, upsertUser, type Slot, type User } from './db.js';
 import { adminIds, env, privacyUrl } from './env.js';
-import { sendToUser } from './sendout.js';
+import { deleteSent, sendToUser } from './sendout.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
@@ -234,6 +234,7 @@ export const createBot = () => {
       ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу. Остановить: /broadcast_stop')
     );
     const users = allUsers();
+    const postId = createBroadcastPost();
     let sent = 0;
     let blocked = 0;
     let failed = 0;
@@ -241,7 +242,7 @@ export const createBot = () => {
     broadcastRunning = true;
     for (const user of users) {
       if (broadcastAbort) break;
-      const result = await sendToUser(user, pending.text, [], pending.photo, true);
+      const result = await sendToUser(user, pending.text, [], pending.photo, true, (message) => addBroadcastMessage(postId, message.platform, message.chatId, message.messageId));
       if (result === 'sent') sent += 1;
       else if (result === 'blocked') {
         blocked += 1;
@@ -264,6 +265,25 @@ export const createBot = () => {
     }
     broadcastAbort = true;
     await ctx.reply('Останавливаю. Отчёт придёт, когда рассылка остановится.');
+  });
+
+  bot.command('broadcast_delete', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const post = lastBroadcastPost();
+    if (!post || !post.messages.length) {
+      await ctx.reply('Сохранённых рассылок нет. Удалять можно только посты, отправленные после этого обновления.');
+      return;
+    }
+    await ctx.reply(`Удаляю последний пост у ${post.messages.length} получателей…`);
+    let deleted = 0;
+    let failed = 0;
+    for (const message of post.messages) {
+      if (await deleteSent(message)) deleted += 1;
+      else failed += 1;
+      await broadcastSleep(40);
+    }
+    deleteBroadcastPost(post.id);
+    await ctx.reply(`Готово. Удалено: ${deleted} из ${post.messages.length}.${failed ? ` Не удалось у ${failed} — возможно, они уже удалили чат.` : ''}`);
   });
 
   bot.action('broadcast_cancel', async (ctx) => {
@@ -310,6 +330,7 @@ const ADMIN_COMMANDS = [
   { command: 'promos', description: 'Промокоды' },
   { command: 'promo_new', description: 'Создать промокод' },
   { command: 'broadcast', description: 'Рассылка всем пользователям' },
+  { command: 'broadcast_delete', description: 'Удалить последнюю рассылку у всех' },
   { command: 'backup', description: 'Резервная копия базы' }
 ];
 

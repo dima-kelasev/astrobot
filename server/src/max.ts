@@ -92,14 +92,20 @@ export class MaxClient {
     });
   }
 
-  async send(userId: number, text: string, buttons: MaxButton[][] = []) {
+  async send(userId: number, text: string, buttons: MaxButton[][] = []): Promise<string | null> {
     const attachments = buttons.length ? [{ type: 'inline_keyboard', payload: { buttons } }] : [];
-    await this.call('POST', '/messages', { user_id: userId }, { text, format: 'html', attachments });
+    const response = await this.call<{ message?: { body?: { mid?: string }; mid?: string } }>('POST', '/messages', { user_id: userId }, { text, format: 'html', attachments });
+    return response.message?.body?.mid ?? response.message?.mid ?? null;
   }
 
-  async sendChat(chatId: number, text: string, buttons: MaxButton[][] = []) {
+  async sendChat(chatId: number, text: string, buttons: MaxButton[][] = []): Promise<string | null> {
     const attachments = buttons.length ? [{ type: 'inline_keyboard', payload: { buttons } }] : [];
-    await this.call('POST', '/messages', { chat_id: chatId }, { text, format: 'html', attachments });
+    const response = await this.call<{ message?: { body?: { mid?: string }; mid?: string } }>('POST', '/messages', { chat_id: chatId }, { text, format: 'html', attachments });
+    return response.message?.body?.mid ?? response.message?.mid ?? null;
+  }
+
+  deleteMessage(messageId: string) {
+    return this.call('DELETE', '/messages', { message_id: messageId });
   }
 
   answerCallback(callbackId: string, notification?: string) {

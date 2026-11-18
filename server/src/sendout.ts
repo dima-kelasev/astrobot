@@ -5,6 +5,10 @@ import { maxAppButton, type MaxButton, type MaxClient } from './max.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
+export type SentMessage = { platform: 'tg' | 'max'; chatId: string; messageId: string };
+
+export type CollectSent = (message: SentMessage) => void;
+
 export type OutButton = { text: string; screen?: string };
 
 let tg: Telegraf | null = null;
@@ -29,20 +33,24 @@ const appUrl = (screen?: string) => {
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-const sendTg = async (userId: number, text: string, buttons: OutButton[], photo: string | null, html = false): Promise<SendResult> => {
+const sendTg = async (userId: number, text: string, buttons: OutButton[], photo: string | null, html = false, collect?: CollectSent): Promise<SendResult> => {
   if (!tg) return 'failed';
   try {
     const keyboard =
       hasWebApp && buttons.length ? Markup.inlineKeyboard(buttons.map((button) => Markup.button.webApp(button.text, appUrl(button.screen)))) : undefined;
     const extra = { ...(html ? { parse_mode: 'HTML' as const } : {}), ...(keyboard ?? {}) };
+    let sentMessageId: number | null = null;
     try {
-      if (photo) await tg.telegram.sendPhoto(userId, photo, { caption: text || undefined, ...extra });
-      else await tg.telegram.sendMessage(userId, text, extra);
+      const sent = photo ? await tg.telegram.sendPhoto(userId, photo, { caption: text || undefined, ...extra }) : await tg.telegram.sendMessage(userId, text, extra);
+      sentMessageId = sent.message_id;
     } catch (error) {
       if (!(html && error instanceof TelegramError && error.code === 400)) throw error;
-      if (photo) await tg.telegram.sendPhoto(userId, photo, { caption: text || undefined, ...(keyboard ?? {}) });
-      else await tg.telegram.sendMessage(userId, text, keyboard);
+      const sent = photo
+        ? await tg.telegram.sendPhoto(userId, photo, { caption: text || undefined, ...(keyboard ?? {}) })
+        : await tg.telegram.sendMessage(userId, text, keyboard);
+      sentMessageId = sent.message_id;
     }
+    if (sentMessageId !== null) collect?.({ platform: 'tg', chatId: String(userId), messageId: String(sentMessageId) });
     return 'sent';
   } catch (error) {
     if (error instanceof TelegramError && (error.code === 403 || error.code === 400)) return 'blocked';
@@ -51,13 +59,14 @@ const sendTg = async (userId: number, text: string, buttons: OutButton[], photo:
   }
 };
 
-const sendMax = async (userId: number, text: string, buttons: OutButton[]): Promise<SendResult> => {
+const sendMax = async (userId: number, text: string, buttons: OutButton[], collect?: CollectSent): Promise<SendResult> => {
   if (!max || !text) return 'failed';
   const external = externalIdOf(userId);
   if (!external) return 'failed';
   try {
     const keyboard: MaxButton[][] = hasWebApp && buttons.length ? [buttons.map((button) => maxAppButton(button.text, button.screen))] : [];
-    await max.send(Number(external), text, keyboard);
+    const mid = await max.send(Number(external), text, keyboard);
+    if (mid) collect?.({ platform: 'max', chatId: external, messageId: mid });
     return 'sent';
   } catch (error) {
     const reason = reasonOf(error);
@@ -67,8 +76,23 @@ const sendMax = async (userId: number, text: string, buttons: OutButton[]): Prom
   }
 };
 
-export const sendToUser = (user: User, text: string, buttons: OutButton[] = [], photo: string | null = null, html = false): Promise<SendResult> =>
-  user.platform === 'max' ? sendMax(user.id, text, buttons) : sendTg(user.id, text, buttons, photo, html);
+export const sendToUser = (user: User, text: string, buttons: OutButton[] = [], photo: string | null = null, html = false, collect?: CollectSent): Promise<SendResult> =>
+  user.platform === 'max' ? sendMax(user.id, text, buttons, collect) : sendTg(user.id, text, buttons, photo, html, collect);
+
+export const deleteSent = async (message: SentMessage): Promise<boolean> => {
+  try {
+    if (message.platform === 'tg') {
+      if (!tg) return false;
+      await tg.telegram.deleteMessage(Number(message.chatId), Number(message.messageId));
+      return true;
+    }
+    if (!max) return false;
+    await max.deleteMessage(message.messageId);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const slotButtons = (slot: 'morning' | 'evening'): OutButton[] =>
   slot === 'morning' ? [{ text: 'Гороскоп на сегодня', screen: 'sky' }, { text: 'Карта дня', screen: 'day' }] : [{ text: 'Разложить карты', screen: 'topics' }];
