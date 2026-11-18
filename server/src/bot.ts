@@ -186,7 +186,9 @@ export const createBot = () => {
     if (!isAdmin(ctx.from.id)) return;
     const text = ctx.payload.trim();
     if (!text) {
-      await ctx.reply('Напишите текст после команды, например:\n/broadcast Добрый день! У нас новый раздел.\n\nМожно и с картинкой: пришлите фото с подписью /broadcast Текст');
+      await ctx.reply(
+        'Напишите текст после команды, например:\n/broadcast Добрый день! У нас новый раздел.\n\nРаботает разметка: <b>жирный</b>, <i>курсив</i>, <a href="https://example.com">вшитая ссылка</a>.\n\nМожно и с картинкой: пришлите фото с подписью /broadcast Текст'
+      );
       return;
     }
     pendingBroadcast.set(ctx.from.id, { text, photo: null });
@@ -239,7 +241,7 @@ export const createBot = () => {
     broadcastRunning = true;
     for (const user of users) {
       if (broadcastAbort) break;
-      const result = await sendToUser(user, pending.text, [], pending.photo);
+      const result = await sendToUser(user, pending.text, [], pending.photo, true);
       if (result === 'sent') sent += 1;
       else if (result === 'blocked') {
         blocked += 1;
