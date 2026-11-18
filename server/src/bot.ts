@@ -20,8 +20,9 @@ import {
   statsText,
   togglePromoText
 } from './botcore.js';
-import { buyerOf, deleteUserData, getPayment, getPromo, getUser, upsertUser, type Slot, type User } from './db.js';
+import { allUsers, buyerOf, deleteUserData, disableNotifications, getPayment, getPromo, getUser, upsertUser, type Slot, type User } from './db.js';
 import { adminIds, env, privacyUrl } from './env.js';
+import { sendToUser } from './sendout.js';
 
 export type SendResult = 'sent' | 'blocked' | 'failed';
 
@@ -175,6 +176,59 @@ export const createBot = () => {
     }
   });
 
+  const pendingBroadcast = new Map<number, string>();
+  const broadcastSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  bot.command('broadcast', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const text = ctx.payload.trim();
+    if (!text) {
+      await ctx.reply('Напишите текст после команды, например:\n/broadcast Добрый день! У нас новый раздел.');
+      return;
+    }
+    pendingBroadcast.set(ctx.from.id, text);
+    const count = allUsers().length;
+    await ctx.reply(`Отправить это сообщение всем пользователям (${count})?\n\n${escapeHtml(text)}`, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([Markup.button.callback('Отправить всем', 'broadcast_send'), Markup.button.callback('Отмена', 'broadcast_cancel')])
+    });
+  });
+
+  bot.action('broadcast_send', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) {
+      await ctx.answerCbQuery();
+      return;
+    }
+    const text = pendingBroadcast.get(ctx.from.id);
+    await ctx.answerCbQuery();
+    if (!text) {
+      await ctx.editMessageText('Текст рассылки потерян. Отправьте /broadcast ещё раз.');
+      return;
+    }
+    pendingBroadcast.delete(ctx.from.id);
+    await ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу.');
+    const users = allUsers();
+    let sent = 0;
+    let blocked = 0;
+    let failed = 0;
+    for (const user of users) {
+      const result = await sendToUser(user, text);
+      if (result === 'sent') sent += 1;
+      else if (result === 'blocked') {
+        blocked += 1;
+        disableNotifications(user.id);
+      } else failed += 1;
+      await broadcastSleep(40);
+    }
+    await ctx.reply(`Рассылка закончена.\nДоставлено: ${sent}\nБот заблокирован: ${blocked}\nОшибки: ${failed}`);
+  });
+
+  bot.action('broadcast_cancel', async (ctx) => {
+    pendingBroadcast.delete(ctx.from.id);
+    await ctx.answerCbQuery();
+    await ctx.editMessageText('Рассылка отменена.');
+  });
+
   bot.command('delete', async (ctx) => {
     await ctx.reply(
       DELETE_TEXT,
@@ -212,6 +266,7 @@ const ADMIN_COMMANDS = [
   { command: 'sales', description: 'Последние покупки' },
   { command: 'promos', description: 'Промокоды' },
   { command: 'promo_new', description: 'Создать промокод' },
+  { command: 'broadcast', description: 'Рассылка всем пользователям' },
   { command: 'backup', description: 'Резервная копия базы' }
 ];
 

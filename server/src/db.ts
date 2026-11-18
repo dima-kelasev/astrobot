@@ -349,6 +349,13 @@ const now = () => new Date().toISOString();
 
 export const getUser = (id: number) => toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(id));
 
+export const allUsers = (): User[] =>
+  db
+    .prepare('SELECT * FROM users')
+    .all()
+    .map(toUser)
+    .filter((user): user is User => user !== null);
+
 export const upsertUser = (id: number, firstName: string, username: string | null = null, platform: Platform = 'tg'): User => {
   db.prepare(
     `INSERT INTO users (id, first_name, username, created_at, platform) VALUES (?, ?, ?, ?, ?)
