@@ -178,6 +178,8 @@ export const createBot = () => {
 
   type PendingBroadcast = { text: string; photo: string | null };
   const pendingBroadcast = new Map<number, PendingBroadcast>();
+  let broadcastAbort = false;
+  let broadcastRunning = false;
   const broadcastSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   bot.command('broadcast', async (ctx) => {
@@ -226,12 +228,17 @@ export const createBot = () => {
       return;
     }
     pendingBroadcast.delete(ctx.from.id);
-    await ctx.editMessageCaption('Рассылка пошла. Пришлю отчёт, когда закончу.').catch(() => ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу.'));
+    await ctx.editMessageCaption('Рассылка пошла. Пришлю отчёт, когда закончу. Остановить: /broadcast_stop').catch(() =>
+      ctx.editMessageText('Рассылка пошла. Пришлю отчёт, когда закончу. Остановить: /broadcast_stop')
+    );
     const users = allUsers();
     let sent = 0;
     let blocked = 0;
     let failed = 0;
+    broadcastAbort = false;
+    broadcastRunning = true;
     for (const user of users) {
+      if (broadcastAbort) break;
       const result = await sendToUser(user, pending.text, [], pending.photo);
       if (result === 'sent') sent += 1;
       else if (result === 'blocked') {
@@ -240,7 +247,21 @@ export const createBot = () => {
       } else failed += 1;
       await broadcastSleep(40);
     }
-    await ctx.reply(`Рассылка закончена.\nДоставлено: ${sent}\nБот заблокирован: ${blocked}\nОшибки: ${failed}`);
+    broadcastRunning = false;
+    const stoppedEarly = broadcastAbort;
+    await ctx.reply(
+      `${stoppedEarly ? 'Рассылка остановлена досрочно.' : 'Рассылка закончена.'}\nДоставлено: ${sent}\nБот заблокирован: ${blocked}\nОшибки: ${failed}${stoppedEarly ? `\nНе отправлено: ${users.length - sent - blocked - failed}` : ''}`
+    );
+  });
+
+  bot.command('broadcast_stop', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    if (!broadcastRunning) {
+      await ctx.reply('Сейчас рассылка не идёт.');
+      return;
+    }
+    broadcastAbort = true;
+    await ctx.reply('Останавливаю. Отчёт придёт, когда рассылка остановится.');
   });
 
   bot.action('broadcast_cancel', async (ctx) => {
